@@ -36,6 +36,33 @@ export function createRenderer(canvas) {
     document.baseURI,
   );
   const patterns = {};
+  let litCharacters = null,
+    litProps = null;
+  // Bake exposure once instead of applying expensive filters to every enemy each frame.
+  // Pixel adjustment also works on iOS versions without Canvas filter support.
+  function expose(image, multiplier) {
+    const layer = document.createElement('canvas');
+    layer.width = Math.min(1024, image.naturalWidth);
+    layer.height = Math.round(
+      (image.naturalHeight * layer.width) / image.naturalWidth,
+    );
+    const paint = layer.getContext('2d');
+    paint.drawImage(image, 0, 0, layer.width, layer.height);
+    const pixels = paint.getImageData(0, 0, layer.width, layer.height);
+    for (let i = 0; i < pixels.data.length; i += 4) {
+      if (!pixels.data[i + 3]) continue;
+      for (let c = 0; c < 3; c++)
+        pixels.data[i + c] = Math.min(255, pixels.data[i + c] * multiplier);
+    }
+    paint.putImageData(pixels, 0, 0);
+    return layer;
+  }
+  atlas.onload = () => {
+    litCharacters = expose(atlas, 1.65);
+  };
+  props.onload = () => {
+    litProps = expose(props, 1.25);
+  };
   terrain.onload = () => {
     ['forest', 'marsh', 'industrial'].forEach((id, i) => {
       const tile = document.createElement('canvas');
@@ -58,10 +85,11 @@ export function createRenderer(canvas) {
   };
   function prop(index, x, y, size) {
     if (!props.complete || !props.naturalWidth) return false;
-    const sw = props.naturalWidth / 4,
-      sh = props.naturalHeight / 2;
+    const source = litProps || props;
+    const sw = source.width / 4,
+      sh = source.height / 2;
     ctx.drawImage(
-      props,
+      source,
       (index % 4) * sw,
       Math.floor(index / 4) * sh,
       sw,
@@ -75,12 +103,13 @@ export function createRenderer(canvas) {
   }
   function sprite(index, size, step = 0) {
     if (!atlas.complete || !atlas.naturalWidth) return false;
-    const sw = atlas.naturalWidth / 4,
-      sh = atlas.naturalHeight / 3;
+    const source = litCharacters || atlas;
+    const sw = source.width / 4,
+      sh = source.height / 3;
     ctx.save();
     ctx.translate(0, Math.sin(step) * 1.4);
     ctx.drawImage(
-      atlas,
+      source,
       (index % 4) * sw,
       Math.floor(index / 4) * sh,
       sw,
@@ -137,6 +166,22 @@ export function createRenderer(canvas) {
         worldHeight + 100,
       );
     }
+    // Lift the ground into midtones before drawing actors and pickups over it.
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = 0.32;
+    ctx.fillStyle = {
+      forest: '#c6bf94',
+      marsh: '#95c7c3',
+      industrial: '#d4b69a',
+    }[g.zone.id];
+    ctx.fillRect(
+      camera.x - worldWidth / 2 - 50,
+      camera.y - worldHeight / 2 - 50,
+      worldWidth + 100,
+      worldHeight + 100,
+    );
+    ctx.restore();
     const tile = 120;
     for (
       let gx = Math.floor((camera.x - worldWidth / 2) / tile) - 1;
@@ -257,9 +302,9 @@ export function createRenderer(canvas) {
         }
       }
     }
-    ctx.fillStyle = g.zone.id === 'industrial' ? '#423d31' : '#333b2c';
+    ctx.fillStyle = g.zone.id === 'industrial' ? '#77715f' : '#6a7058';
     ctx.fillRect(-155, camera.y - worldHeight, 110, worldHeight * 2);
-    ctx.fillStyle = '#98915a66';
+    ctx.fillStyle = '#d5c990aa';
     for (
       let y = Math.floor((camera.y - worldHeight) / 90) * 90;
       y < camera.y + worldHeight;
@@ -414,9 +459,12 @@ export function createRenderer(canvas) {
       ctx.save();
       ctx.translate(c.x, c.y);
       ctx.rotate(Math.PI / 4);
-      ctx.fillStyle = c.value >= 5 ? '#b5e9ec' : '#c2ef89';
+      ctx.fillStyle = c.value >= 5 ? '#9bf8ff' : '#e1ff8c';
+      ctx.strokeStyle = '#263a27';
+      ctx.lineWidth = 1.5;
       const r = c.value >= 5 ? 5 : 3.5;
       ctx.fillRect(-r, -r, r * 2, r * 2);
+      ctx.strokeRect(-r, -r, r * 2, r * 2);
       ctx.globalAlpha = 0.1;
       ctx.fillRect(-r * 2, -r * 2, r * 4, r * 4);
       ctx.restore();
@@ -440,7 +488,15 @@ export function createRenderer(canvas) {
         continue;
       if (e.hit) ring(ctx, e.x, e.y, e.radius + 3, '#f5edbd', 2);
       if (e.elite) ring(ctx, e.x, e.y, e.radius + 11, '#f5c276', 2);
-      circle(ctx, e.x + 3, e.y + 7, e.radius + 2, '#0a150d66');
+      circle(ctx, e.x + 3, e.y + 7, e.radius + 2, '#111b23aa');
+      ring(
+        ctx,
+        e.x,
+        e.y,
+        e.radius + 2,
+        e.type === 'boss' ? '#ffbf7d' : '#e89b87',
+        e.type === 'boss' ? 2 : 1,
+      );
       ctx.save();
       ctx.translate(e.x, e.y);
       ctx.rotate(Math.atan2(p.y - e.y, p.x - e.x));
@@ -579,7 +635,8 @@ export function createRenderer(canvas) {
     ctx.globalAlpha = 1;
     if (p.invulnerable <= 0 || Math.floor(p.invulnerable * 18) % 2) {
       circle(ctx, p.x + 2, p.y + 8, 17, '#09130c88');
-      ring(ctx, p.x, p.y, 24, `${g.operator.color}88`, 1.5);
+      circle(ctx, p.x, p.y, 25, '#101c25cc');
+      ring(ctx, p.x, p.y, 25, '#fff0ae', 2.5);
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(p.angle);
@@ -634,18 +691,6 @@ export function createRenderer(canvas) {
     }
     ctx.globalAlpha = 1;
     ctx.restore();
-    const vignette = ctx.createRadialGradient(
-      width / 2,
-      height / 2,
-      Math.min(width, height) * 0.18,
-      width / 2,
-      height / 2,
-      Math.max(width, height) * 0.65,
-    );
-    vignette.addColorStop(0, '#07120800');
-    vignette.addColorStop(1, '#040d08aa');
-    ctx.fillStyle = vignette;
-    ctx.fillRect(0, 0, width, height);
     if (settings.quality !== 'low') {
       for (let i = 0; i < 28; i++) {
         const x = (hash(i, 8) * width + ambient * (3 + (i % 4))) % width,

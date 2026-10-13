@@ -5,9 +5,9 @@
   font-synthesis: none;
   color-scheme: dark;
   --acid: #c6e993;
-  --muted: #93a388;
-  --line: #b8d19025;
-  --panel: #142016ed;
+  --muted: #c0ccb3;
+  --line: #d0dfab66;
+  --panel: #293b2ded;
 }
 * {
   box-sizing: border-box;
@@ -94,7 +94,7 @@ button span {
 .vitals {
   width: 180px;
   padding: 12px 14px;
-  background: #0c160c;
+  background: #273b30;
   border: 1px solid var(--line);
 }
 .vitals-label {
@@ -277,14 +277,14 @@ button span {
   position: relative;
   border: 1px solid #c0db9955;
   border-radius: 50%;
-  background: #152719d9;
+  background: #e7efc9;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 1px;
-  color: #d5efb8;
+  color: #25382b;
   box-shadow: 0 4px 20px #0003;
 }
 .ability:before {
@@ -317,7 +317,7 @@ button span {
 }
 .ability.recharging > span,
 .ability.recharging small {
-  opacity: 0.2;
+  opacity: 0.7;
 }
 .ability.nova {
   width: 82px;
@@ -363,8 +363,8 @@ button span {
   z-index: 4;
   overflow-y: auto;
   overscroll-behavior: contain;
-  background: linear-gradient(90deg, #08120bea 0%, #0d180ec9 45%, #111b0eb5);
-  backdrop-filter: blur(3px);
+  background: linear-gradient(90deg, #1c2c24f2, #24372bf2);
+  backdrop-filter: none;
   padding: max(35px, env(safe-area-inset-top))
     max(35px, env(safe-area-inset-right)) max(30px, env(safe-area-inset-bottom))
     max(35px, env(safe-area-inset-left));
@@ -444,9 +444,9 @@ h1 em {
   background: #d9f8b1;
 }
 .secondary {
-  color: #c3d7ab;
-  border: 1px solid #b8d19044;
-  background: #1f311c55;
+  color: #f1f0d8;
+  border: 1px solid #d2ddad99;
+  background: #435840;
 }
 .secondary:hover {
   background: #34462a77;
@@ -459,7 +459,7 @@ h1 em {
 .text-button {
   border: 0;
   background: transparent;
-  color: #b1c29d;
+  color: #e0ebce;
   font: 9px monospace;
   letter-spacing: 1px;
   padding: 12px 0;
@@ -483,13 +483,13 @@ h1 em {
 .install-row > span {
   font: 8px monospace;
   letter-spacing: 1px;
-  color: #74846a;
+  color: #c4d1b3;
 }
 .deployment-panel {
   border: 1px solid #bdd99a33;
-  background: #142015b3;
+  background: #293c2eea;
   padding: 25px;
-  backdrop-filter: blur(15px);
+  backdrop-filter: none;
 }
 .panel-heading {
   display: flex;
@@ -513,7 +513,7 @@ h1 em {
 }
 label {
   font: 9px monospace;
-  color: #91a17f;
+  color: #cad8b9;
   letter-spacing: 2px;
   display: block;
   margin: 23px 0 13px;
@@ -544,7 +544,7 @@ label {
 .operator-option small {
   font: 6px monospace;
   letter-spacing: 0.7px;
-  color: #8e9c7b;
+  color: #cad8b9;
   margin-top: 7px;
   line-height: 1.5;
 }
@@ -554,7 +554,7 @@ label {
 }
 .selection-description {
   font-size: 10px;
-  color: #91a17f;
+  color: #cad8b9;
   line-height: 1.9;
   margin-top: 12px;
   min-height: 38px;
@@ -609,7 +609,7 @@ label {
 .zone-option small {
   display: block;
   font: 7px monospace;
-  color: #879876;
+  color: #cad8b9;
   margin-top: 6px;
   letter-spacing: 1px;
 }
@@ -628,7 +628,7 @@ label {
   padding: 13px 5px;
   background: #12201388;
   border: 1px solid var(--line);
-  color: #90a27d;
+  color: #cad8b9;
 }
 .mode-options button + button {
   border-left: 0;
@@ -643,7 +643,7 @@ label {
   margin-top: 20px;
   padding-top: 17px;
   font: 7px monospace;
-  color: #839672;
+  color: #cad8b9;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -682,7 +682,7 @@ label {
 .research-card {
   padding: 22px 18px;
   border: 1px solid var(--line);
-  background: #18271bcc;
+  background: #304632;
   display: flex;
   flex-direction: column;
 }
@@ -694,7 +694,7 @@ label {
 .research-card .eyebrow {
   font-size: 7px;
   letter-spacing: 1px;
-  color: #879f6f;
+  color: #cad8b9;
 }
 .research-card h2 {
   font-size: 17px;
@@ -705,7 +705,7 @@ label {
 .research-card p {
   font-size: 11px;
   line-height: 1.8;
-  color: #8fa17e;
+  color: #cad8b9;
   min-height: 42px;
 }
 .rank-track {
@@ -742,7 +742,7 @@ label {
   gap: 15px;
 }
 .section-label > span {
-  color: #637d53;
+  color: #cad8b9;
   font-size: 8px;
   letter-spacing: 1px;
 }
@@ -961,7 +961,7 @@ label {
 .settings-list small {
   display: block;
   font-size: 11px;
-  color: #90a27f;
+  color: #cad8b9;
   line-height: 1.8;
   margin-top: 7px;
 }
@@ -1040,7 +1040,7 @@ label {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  background: linear-gradient(145deg, #293d24ee, #132217ee);
+  background: linear-gradient(145deg, #405639, #2b4031);
   border: 1px solid #9ab77a55;
   text-align: left;
   padding: 25px;
@@ -1083,7 +1083,7 @@ label {
 }
 .choice p {
   font-size: 12px;
-  color: #99ad86;
+  color: #cad8b9;
   line-height: 1.9;
 }
 .choice-bottom {
@@ -1675,7 +1675,7 @@ label {
 /* Illustrated field edition. All artwork ships with the offline game. */
 .home-overlay {
   background-image:
-    linear-gradient(90deg, #07110cf5, #08130b9e 55%, #08130b55), var(--key-art);
+    linear-gradient(90deg, #07110cb0, #08130b40 55%, #08130b10), var(--key-art);
   background-position:
     center,
     center 60%;
@@ -1743,11 +1743,11 @@ label {
   padding: 22px;
   text-align: left;
   border: 1px solid var(--line);
-  background: #101e16;
+  background: #2b3d30;
 }
 .kit-card.selected {
   border-color: var(--acid);
-  background: #203223;
+  background: #3c5340;
 }
 .kit-card > span {
   display: block;
@@ -1783,11 +1783,11 @@ label {
   padding: 18px;
   text-align: left;
   border: 1px solid var(--line);
-  background: #101d14;
+  background: #2b3d30;
 }
 .chapter-list button.selected {
   border-color: var(--acid);
-  background: #203124;
+  background: #3c5340;
 }
 .chapter-list button > span {
   font: 24px monospace;
@@ -1840,7 +1840,7 @@ label {
   gap: 18px;
   border: 1px solid var(--line);
   padding: 20px;
-  background: #101d14;
+  background: #2b3d30;
 }
 .codex-art {
   width: 100px;
@@ -1947,7 +1947,7 @@ label {
 @media (max-width: 700px) {
   .home-overlay {
     background-image:
-      linear-gradient(180deg, #06100d66, #08120b99 270px, #08130cf5 530px),
+      linear-gradient(180deg, #06100d20, #08120b40 270px, #243429dc 530px),
       var(--key-art);
     background-attachment: local;
     background-size:
@@ -1955,7 +1955,7 @@ label {
       auto 850px;
     background-repeat: no-repeat;
     background-position: top center;
-    background-color: #08130c;
+    background-color: #243429;
   }
   .home-main {
     padding-top: 16px;
@@ -2060,4 +2060,35 @@ label {
 #touch-hint {
   top: 63%;
   bottom: auto;
+}
+
+/* Separate interactive surfaces from the illustrated world. */
+.operator-art,
+.codex-art {
+  filter: brightness(1.6) saturate(1.1);
+}
+.operator-option {
+  background: #344936;
+  border-color: #b5ca9277;
+}
+.operator-option.selected {
+  background: #526a43;
+  border-color: #e6f3b8;
+}
+.zone-option {
+  background: #304336;
+  border-color: #bbce9a66;
+}
+.zone-option.selected {
+  background: #485e3c;
+  border-color: #e6f3b8;
+}
+.icon-button {
+  background: #e7efc9;
+  color: #25382b;
+  border-color: #f3f6db;
+}
+.ability.recharging {
+  background: #697a63;
+  color: #f0f4de;
 }
