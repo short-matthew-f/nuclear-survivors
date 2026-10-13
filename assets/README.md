@@ -1,3 +1,3 @@
-# Assets
+# Public assets
 
-Terrain, characters, effects, and audio currently use Canvas drawing and Web Audio. Add non-code game assets here when introducing authored artwork or audio.
+Vite copies this directory to the production build. It contains the app manifest, regular/maskable PNG icons, the SVG icon, and screenshots. The world, characters, weapon effects, and audio are generated in code; no external resources are needed for offline play.

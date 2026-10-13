@@ -27,3 +27,7 @@ Do not commit credentials or machine-specific settings. Provide example configur
 ## Current Implementation
 
 The initial game is a vanilla JavaScript Canvas application built with Vite. Application code is in `src/`, Node test-runner tests are in `tests/`, and future non-code assets belong in `assets/`. Use `npm ci` to install, `npm run dev` to develop, `npm run build` to build, `npm test` to test, `npm run format` to format, and `npm run lint` to check formatting. See README.md for controls and full setup instructions.
+
+## Expanded Game (Field Build 0.2)
+
+Keep simulation and content definitions browser-independent (`src/game.js`, `src/content.js`). Rendering belongs in `src/render.js`; menus, audio, and touch input in `src/main.js`. Progression persistence is in `src/profile.js`, and resumable operations in `src/checkpoint.js`. `assets/` is Vite's public directory and contains the PWA manifest and icons. The build plugin in `vite.config.js` generates the service worker. Do not register a worker during development, add external runtime asset dependencies, or introduce keyboard movement. Verify changes to saves, abilities, progression, or PWA behavior with meaningful tests in `tests/`. Gameplay fills the viewport; menus and essential controls overlay the arena.

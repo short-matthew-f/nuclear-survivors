@@ -3,359 +3,624 @@ import {
   createGame,
   update,
   applyUpgrade,
-  UPGRADES,
+  reroll,
+  activateDash,
+  activateNova,
   formatTime,
-  DURATION,
+  seededRandom,
+  distance,
 } from './game.js';
+import {
+  DURATION,
+  OPERATORS,
+  ZONES,
+  WEAPONS,
+  RESEARCH,
+  ACHIEVEMENTS,
+  UPGRADES,
+} from './content.js';
+import { SAVE_KEY, parseProfile, purchase, settleRun } from './profile.js';
+import { createRenderer } from './render.js';
+import { CHECKPOINT_KEY, serializeRun, restoreRun } from './checkpoint.js';
 
-const $ = (id) => document.getElementById(id);
-const canvas = $('game');
-const ctx = canvas.getContext('2d');
-let game = createGame();
-let width = 900,
-  height = 600,
-  last = 0,
-  overlayState = '',
-  sound = false,
-  audio;
-const keys = new Set();
-let pointer = null;
-let best = 0;
+const $ = (id) => document.getElementById(id),
+  canvas = $('game'),
+  renderer = createRenderer(canvas);
+let profile = parseProfile(null),
+  storageAvailable = true;
 try {
-  best = Number(localStorage.getItem('nuclear-survivors-best')) || 0;
+  profile = parseProfile(localStorage.getItem(SAVE_KEY));
+  const legacyBest = Number(localStorage.getItem('nuclear-survivors-best'));
+  if (Number.isFinite(legacyBest))
+    profile.best = Math.max(profile.best, legacyBest);
 } catch {
-  /* Storage may be unavailable in private browsers. */
+  storageAvailable = false;
 }
-$('best').textContent = best
-  ? `${formatTime(best)} SURVIVED`
-  : 'NO RUNS LOGGED';
-const resize = () => {
-  const rect = canvas.getBoundingClientRect();
-  width = rect.width;
-  height = rect.height;
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  canvas.width = width * dpr;
-  canvas.height = height * dpr;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-};
+let operator = 'nomad',
+  zone = 'forest',
+  mode = 'extraction',
+  screen = 'home',
+  game = createGame(),
+  pointer = null,
+  last = 0,
+  ambient = 0,
+  uiClock = 0,
+  overlayStamp = '',
+  audio,
+  result = null,
+  installPrompt = null,
+  waitingWorker = null,
+  savedRun = null,
+  checkpointClock = 0;
+try {
+  savedRun = restoreRun(localStorage.getItem(CHECKPOINT_KEY));
+} catch {
+  /* Storage is optional. */
+}
+function checkpoint() {
+  const data = serializeRun(game);
+  if (data)
+    try {
+      localStorage.setItem(CHECKPOINT_KEY, data);
+    } catch {
+      /* Keep playing if storage fills. */
+    }
+}
+function clearCheckpoint() {
+  savedRun = null;
+  try {
+    localStorage.removeItem(CHECKPOINT_KEY);
+  } catch {
+    /* Storage is optional. */
+  }
+}
+const reducedMotion = window.matchMedia(
+  '(prefers-reduced-motion: reduce)',
+).matches;
+if (reducedMotion) profile.settings.shake = false;
+function save() {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(profile));
+  } catch {
+    storageAvailable = false;
+    toast('Storage unavailable. Progress lasts for this session.');
+  }
+}
+let toastTimer;
+function toast(text) {
+  $('toast').textContent = text;
+  $('toast').classList.add('visible');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $('toast').classList.remove('visible'), 3500);
+}
+function tone(frequency, duration = 0.1, volume = 0.035) {
+  if (!profile.settings.sound) return;
+  try {
+    audio ??= new (window.AudioContext || window.webkitAudioContext)();
+    audio.resume();
+    const osc = audio.createOscillator(),
+      gain = audio.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(frequency, audio.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(
+      Math.max(30, frequency * 0.5),
+      audio.currentTime + duration,
+    );
+    gain.gain.setValueAtTime(volume, audio.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(audio.destination);
+    osc.start();
+    osc.stop(audio.currentTime + duration);
+  } catch {
+    /* Audio is optional on restricted browsers. */
+  }
+}
+function haptic(pattern = 12) {
+  if (profile.settings.haptics) navigator.vibrate?.(pattern);
+}
+function resize() {
+  renderer.resize(profile.settings.quality);
+}
 new ResizeObserver(resize).observe(canvas);
-function tone(frequency, duration, volume = 0.025) {
-  if (!sound) return;
-  audio ??= new (window.AudioContext || window.webkitAudioContext)();
-  audio.resume();
-  const osc = audio.createOscillator(),
-    gain = audio.createGain();
-  osc.type = 'triangle';
-  osc.frequency.value = frequency;
-  gain.gain.setValueAtTime(volume, audio.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + duration);
-  osc.connect(gain);
-  gain.connect(audio.destination);
-  osc.start();
-  osc.stop(audio.currentTime + duration);
+resize();
+function action(label, id, cls = 'primary', extra = '') {
+  return `<button class="${cls}" data-action="${id}" ${extra}>${label}</button>`;
 }
-$('sound').onclick = () => {
-  sound = !sound;
-  $('sound').textContent = sound ? 'SOUND ON' : 'SOUND OFF';
-  $('sound').setAttribute(
-    'aria-label',
-    sound ? 'Disable sound' : 'Enable sound',
-  );
-  tone(440, 0.08);
-};
+function heading(kicker, title, description = '') {
+  return `<div class="eyebrow">${kicker}</div><h1>${title}</h1>${description ? `<p class="lede">${description}</p>` : ''}`;
+}
+function navigation() {
+  return `<div class="menu-nav">${action('← BACK', 'home', 'text-button')}<span class="currency">◈ ${profile.scrap} <small>SALVAGE</small></span></div>`;
+}
 function start() {
-  game = createGame();
+  const daily = mode === 'daily',
+    seed = new Date().toISOString().slice(0, 10);
+  clearCheckpoint();
+  game = createGame(
+    seededRandom(daily ? seed : `${Date.now()}-${Math.random()}`),
+    {
+      operator: daily ? 'nomad' : operator,
+      zone: daily ? 'forest' : zone,
+      mode: mode === 'endless' ? 'endless' : 'extraction',
+      research: daily ? {} : profile.research,
+    },
+  );
   game.state = 'playing';
-  overlayState = '';
-  keys.clear();
+  screen = 'run';
+  result = null;
   pointer = null;
-  tone(300, 0.2);
+  overlayStamp = '';
+  tone(330, 0.25);
+  renderUI();
 }
-function togglePause() {
-  if (game.state === 'playing') game.state = 'paused';
-  else if (game.state === 'paused') game.state = 'playing';
-  keys.clear();
+function menu(next = 'home') {
+  screen = next;
+  overlayStamp = '';
   pointer = null;
+  if (game.state === 'ready') {
+    game = createGame(Math.random, { operator, zone });
+  }
+  renderUI();
 }
-$('pause').onclick = togglePause;
-window.addEventListener('keydown', (e) => {
-  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key))
-    e.preventDefault();
-  if ((e.key === 'Escape' || e.key.toLowerCase() === 'p') && !e.repeat)
-    togglePause();
-  keys.add(e.key.toLowerCase());
-});
-window.addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
-window.addEventListener('blur', () => {
-  if (game.state === 'playing') togglePause();
-  keys.clear();
-});
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden && game.state === 'playing') togglePause();
-});
+function pause() {
+  if (game.state === 'playing') {
+    game.state = 'paused';
+    checkpoint();
+    pointer = null;
+    overlayStamp = '';
+    renderUI();
+  }
+}
+function resume() {
+  if (game.state === 'paused') {
+    game.state = 'playing';
+    screen = 'run';
+    pointer = null;
+    overlayStamp = '';
+    renderUI();
+  }
+}
+function input() {
+  if (!pointer) return { x: 0, y: 0 };
+  const dx = (pointer.x - pointer.ox) / 44,
+    dy = (pointer.y - pointer.oy) / 44;
+  return Math.hypot(dx, dy) < 0.12 ? { x: 0, y: 0 } : { x: dx, y: dy };
+}
 canvas.addEventListener('pointerdown', (e) => {
-  if (game.state !== 'playing') return;
+  if (game.state !== 'playing' || pointer) return;
+  const rect = canvas.getBoundingClientRect();
+  pointer = {
+    id: e.pointerId,
+    ox: e.clientX - rect.left,
+    oy: e.clientY - rect.top,
+    x: e.clientX - rect.left,
+    y: e.clientY - rect.top,
+  };
   canvas.setPointerCapture(e.pointerId);
-  pointer = { ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY };
 });
 canvas.addEventListener('pointermove', (e) => {
-  if (pointer) {
-    pointer.x = e.clientX;
-    pointer.y = e.clientY;
-  }
+  if (pointer?.id !== e.pointerId) return;
+  const rect = canvas.getBoundingClientRect();
+  pointer.x = e.clientX - rect.left;
+  pointer.y = e.clientY - rect.top;
 });
 for (const event of ['pointerup', 'pointercancel', 'lostpointercapture'])
-  canvas.addEventListener(event, () => {
-    pointer = null;
+  canvas.addEventListener(event, (e) => {
+    if (pointer?.id === e.pointerId) pointer = null;
   });
-function input() {
-  let x =
-    Number(keys.has('d') || keys.has('arrowright')) -
-    Number(keys.has('a') || keys.has('arrowleft'));
-  let y =
-    Number(keys.has('s') || keys.has('arrowdown')) -
-    Number(keys.has('w') || keys.has('arrowup'));
-  if (pointer) {
-    x = (pointer.x - pointer.ox) / 35;
-    y = (pointer.y - pointer.oy) / 35;
-    if (Math.hypot(x, y) < 0.15) x = y = 0;
+window.addEventListener('blur', pause);
+window.addEventListener('pagehide', checkpoint);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) pause();
+});
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (game.state === 'playing') pause();
+    else if (game.state === 'paused') resume();
   }
-  return { x, y };
+});
+$('pause').onclick = pause;
+$('dash').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  if (activateDash(game, input())) {
+    tone(180, 0.13);
+    haptic(16);
+  }
+});
+$('nova').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  if (activateNova(game)) {
+    tone(70, 0.35, 0.06);
+    haptic([20, 30, 20]);
+  }
+});
+// Click also supports assistive technology and keyboard activation without double-firing touch actions.
+$('dash').addEventListener('click', (e) => {
+  if (e.detail === 0) activateDash(game, input());
+});
+$('nova').addEventListener('click', (e) => {
+  if (e.detail === 0) activateNova(game);
+});
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  installPrompt = e;
+  overlayStamp = '';
+});
+window.addEventListener('appinstalled', () => {
+  installPrompt = null;
+  toast('Bunker installed. See you in the zone.');
+});
+async function install() {
+  if (installPrompt) {
+    await installPrompt.prompt();
+    installPrompt = null;
+  } else {
+    menu('guide');
+    toast(
+      'iPhone: Share → Add to Home Screen. Android: browser menu → Install app.',
+    );
+  }
 }
-function circle(x, y, r, color) {
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.fill();
+async function fullscreen() {
+  try {
+    if (!document.fullscreenElement)
+      await document.documentElement.requestFullscreen();
+    else await document.exitFullscreen();
+  } catch {
+    toast('For fullscreen on this device, add the game to your home screen.');
+  }
 }
-function render() {
-  ctx.fillStyle = '#20271c';
-  ctx.fillRect(0, 0, width, height);
-  const p = game.player;
-  ctx.save();
-  ctx.translate(width / 2 - p.x, height / 2 - p.y);
-  // Deterministic world tiles let the camera travel across an endless wasteland.
-  const tile = 96;
-  for (
-    let gx = Math.floor((p.x - width / 2) / tile) - 1;
-    gx <= Math.ceil((p.x + width / 2) / tile) + 1;
-    gx++
+$('overlay').addEventListener('click', async (e) => {
+  const button = e.target.closest('button');
+  if (!button || button.disabled) return;
+  const act = button.dataset.action;
+  const value = button.dataset.value;
+  tone(420, 0.035, 0.012);
+  if (act === 'start') start();
+  else if (act === 'restore' && savedRun) {
+    game = savedRun;
+    savedRun = null;
+    screen = 'run';
+    overlayStamp = '';
+    renderUI();
+  } else if (
+    ['home', 'workshop', 'records', 'guide', 'settings'].includes(act)
   ) {
-    for (
-      let gy = Math.floor((p.y - height / 2) / tile) - 1;
-      gy <= Math.ceil((p.y + height / 2) / tile) + 1;
-      gy++
-    ) {
-      const seed = Math.abs(Math.sin(gx * 127.1 + gy * 311.7) * 43758.5453) % 1;
-      const x = gx * tile,
-        y = gy * tile;
-      ctx.fillStyle = seed > 0.5 ? '#252c20' : '#22291d';
-      ctx.fillRect(x, y, tile - 1, tile - 1);
-      ctx.strokeStyle = '#303727';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(x + 18, y + 56);
-      ctx.lineTo(x + 26, y + 50);
-      ctx.lineTo(x + 28, y + 35);
-      ctx.stroke();
-      if (seed > 0.86) {
-        circle(x + 50, y + 48, 27, '#1b2218');
-        circle(x + 47, y + 43, 21, '#303728');
-        ctx.strokeStyle = '#444b34';
-        ctx.beginPath();
-        ctx.moveTo(x + 34, y + 44);
-        ctx.lineTo(x + 47, y + 31);
-        ctx.lineTo(x + 61, y + 40);
-        ctx.stroke();
-      } else if (seed < 0.1) {
-        ctx.save();
-        ctx.translate(x + 50, y + 50);
-        ctx.rotate(seed * 20);
-        ctx.fillStyle = '#161e16';
-        ctx.fillRect(-18, -10, 36, 20);
-        ctx.fillStyle = '#424334';
-        ctx.fillRect(-16, -14, 29, 20);
-        ctx.strokeStyle = '#58533a';
-        ctx.strokeRect(-16, -14, 29, 20);
-        ctx.fillStyle = '#282f23';
-        ctx.fillRect(-12, -10, 8, 12);
-        ctx.restore();
+    if (act === 'home' && ['dead', 'won'].includes(game.state))
+      game = createGame(Math.random, { operator, zone });
+    menu(act);
+  } else if (act === 'operator') {
+    if (!profile.operators.includes(value)) {
+      if (!purchase(profile, 'operator', value)) {
+        toast('Recover more salvage to recruit this operator.');
+        return;
       }
-      for (let i = 0; i < 4; i++)
-        circle(
-          x + ((seed * 173 + i * 29) % 94),
-          y + ((seed * 231 + i * 17) % 92),
-          1.5,
-          '#3c442d',
-        );
+      save();
     }
-  }
-  // Abandoned road and hazard stripes establish a recognizable starting sector.
-  ctx.fillStyle = '#34362b';
-  ctx.fillRect(-155, -2000, 108, 4000);
-  ctx.fillStyle = '#605b39';
-  for (let y = Math.floor((p.y - height) / 80) * 80; y < p.y + height; y += 80)
-    ctx.fillRect(-104, y, 5, 30);
-  ctx.strokeStyle = '#55533a';
-  ctx.strokeRect(-151, -2000, 100, 4000);
-  for (const c of game.cores) {
-    ctx.shadowColor = '#b6ed64';
-    ctx.shadowBlur = 12;
-    ctx.save();
-    ctx.translate(c.x, c.y);
-    ctx.rotate(Math.PI / 4);
-    ctx.fillStyle = '#bbef72';
-    ctx.fillRect(-3.5, -3.5, 7, 7);
-    ctx.restore();
-    ctx.shadowBlur = 0;
-  }
-  for (const e of game.enemies) {
-    circle(e.x + 2, e.y + 6, e.radius + 2, '#10180e88');
-    circle(
-      e.x,
-      e.y,
-      e.radius,
-      e.hit ? '#e3e5b2' : e.brute ? '#7b6747' : '#69784b',
-    );
-    circle(
-      e.x - 3,
-      e.y - 3,
-      e.radius * 0.65,
-      e.hit ? '#ffffff' : e.brute ? '#a08a5a' : '#8a9b5b',
-    );
-    circle(e.x - 4, e.y - 4, 2, '#d6f77e');
-    circle(e.x + 4, e.y - 4, 2, '#d6f77e');
-    if (e.hp < e.maxHp) {
-      ctx.fillStyle = '#111710';
-      ctx.fillRect(e.x - 13, e.y - e.radius - 8, 26, 3);
-      ctx.fillStyle = '#b5cc72';
-      ctx.fillRect(e.x - 13, e.y - e.radius - 8, (26 * e.hp) / e.maxHp, 3);
+    operator = value;
+    menu();
+  } else if (act === 'zone') {
+    if (!profile.zones.includes(value)) {
+      if (!purchase(profile, 'zone', value)) {
+        toast('Recover more salvage to access this sector.');
+        return;
+      }
+      save();
     }
-  }
-  for (const b of game.bullets) {
-    ctx.strokeStyle = '#f5dc85';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(b.x, b.y);
-    ctx.lineTo(b.x - b.vx * 0.018, b.y - b.vy * 0.018);
-    ctx.stroke();
-  }
-  for (const s of game.particles) {
-    ctx.globalAlpha = s.life * 2;
-    circle(s.x, s.y, 2, '#d4d788');
-  }
-  ctx.globalAlpha = 1;
-  ctx.strokeStyle = '#c5e98220';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.arc(p.x, p.y, 28, 0, Math.PI * 2);
-  ctx.stroke();
-  if (p.invulnerable <= 0 || Math.floor(p.invulnerable * 15) % 2) {
-    circle(p.x + 2, p.y + 8, 15, '#10161099');
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    const enemy = game.enemies[0];
-    const movement = input();
-    ctx.rotate(
-      enemy
-        ? Math.atan2(enemy.y - p.y, enemy.x - p.x)
-        : movement.x || movement.y
-          ? Math.atan2(movement.y, movement.x)
-          : -Math.PI / 4,
-    );
-    ctx.fillStyle = '#555e49';
-    ctx.fillRect(-10, -10, 16, 20);
-    circle(0, 0, 10, '#c5c3a0');
-    circle(2, 0, 7, '#444f41');
-    ctx.fillStyle = '#c4eb8b';
-    ctx.fillRect(5, -4, 4, 8);
-    ctx.fillStyle = '#a7a889';
-    ctx.fillRect(5, 6, 20, 4);
-    ctx.fillStyle = '#292f27';
-    ctx.fillRect(22, 5, 7, 5);
-    ctx.restore();
-  }
-  ctx.restore();
-  const vignette = ctx.createRadialGradient(
-    width / 2,
-    height / 2,
-    height * 0.15,
-    width / 2,
-    height / 2,
-    width * 0.7,
-  );
-  vignette.addColorStop(0, '#101a0900');
-  vignette.addColorStop(1, '#060b08c0');
-  ctx.fillStyle = vignette;
-  ctx.fillRect(0, 0, width, height);
-  if (pointer) {
-    const rect = canvas.getBoundingClientRect();
-    circle(pointer.ox - rect.left, pointer.oy - rect.top, 35, '#ffffff18');
-    circle(pointer.x - rect.left, pointer.y - rect.top, 12, '#c4ed7780');
-  }
+    zone = value;
+    menu();
+  } else if (act === 'mode') {
+    mode = value;
+    menu();
+  } else if (act === 'research') {
+    if (purchase(profile, 'research', value)) {
+      save();
+      tone(650, 0.15);
+      menu('workshop');
+    } else toast('Not enough salvage.');
+  } else if (act === 'upgrade') {
+    if (applyUpgrade(game, value)) {
+      haptic(12);
+      tone(700, 0.18);
+      pointer = null;
+      overlayStamp = '';
+      renderUI();
+    }
+  } else if (act === 'reroll') {
+    if (reroll(game)) {
+      overlayStamp = '';
+      renderUI();
+    }
+  } else if (act === 'resume') resume();
+  else if (act === 'abandon') {
+    screen = 'confirm';
+    overlayStamp = '';
+    renderUI();
+  } else if (act === 'confirm-abandon') {
+    game.state = 'dead';
+    screen = 'run';
+    overlayStamp = '';
+    renderUI();
+  } else if (act === 'cancel-abandon') {
+    screen = 'run';
+    overlayStamp = '';
+    renderUI();
+  } else if (act === 'setting') {
+    if (value === 'quality')
+      profile.settings.quality =
+        profile.settings.quality === 'high' ? 'low' : 'high';
+    else profile.settings[value] = !profile.settings[value];
+    save();
+    resize();
+    menu('settings');
+  } else if (act === 'settings-back') {
+    screen = game.state === 'paused' ? 'run' : 'home';
+    overlayStamp = '';
+    renderUI();
+  } else if (act === 'install') await install();
+  else if (act === 'fullscreen') await fullscreen();
+});
+function homeScreen() {
+  const o = OPERATORS.find((o) => o.id === operator),
+    z = ZONES.find((z) => z.id === zone);
+  return `<div class="home"><div class="home-main"><div class="brand-mark">☢</div>${heading('A SURVIVAL ROGUELITE', 'NUCLEAR<br><em>SURVIVORS.</em>', 'The world ended. Your shift didn’t.')}<div class="home-actions">${savedRun ? action(`RESUME ${formatTime(savedRun.time)} OPERATION <span>↗</span>`, 'restore') + action('NEW OPERATION', 'start', 'secondary') : action('ENTER THE ZONE <span>↗</span>', 'start')}${action('THE BUNKER <span>◈</span>', 'workshop', 'secondary')}</div><div class="home-links">${action('FIELD GUIDE', 'guide', 'text-button')}${action('RUN ARCHIVE', 'records', 'text-button')}${action('SETTINGS', 'settings', 'text-button')}</div><div class="install-row">${action('⊕ INSTALL GAME', 'install', 'text-button')}<span>TOUCH TO MOVE · AUTO COMBAT</span></div></div><div class="deployment-panel"><div class="panel-heading"><span>PREPARE TO DEPLOY</span><span class="currency">◈ ${profile.scrap}</span></div><label>01 / OPERATOR</label><div class="operator-options">${OPERATORS.map((item) => `<button class="operator-option ${operator === item.id ? 'selected' : ''}" data-action="operator" data-value="${item.id}" aria-pressed="${operator === item.id}"><span style="color:${item.color}">${item.icon}</span><strong>${item.name}</strong><small>${profile.operators.includes(item.id) ? item.role : `◈ ${item.cost} TO RECRUIT`}</small></button>`).join('')}</div><p class="selection-description">${o.description}</p><label>02 / DROP ZONE</label><div class="zone-options">${ZONES.map((item) => `<button class="zone-option ${zone === item.id ? 'selected' : ''}" data-action="zone" data-value="${item.id}" aria-pressed="${zone === item.id}"><span class="zone-swatch ${item.id}"></span><span><strong>${item.name}</strong><small>${profile.zones.includes(item.id) ? item.label : `LOCKED · ◈ ${item.cost}`}</small></span><b>${zone === item.id ? '↗' : '+'}</b></button>`).join('')}</div><label>03 / OPERATION</label><div class="mode-options">${[
+    ['extraction', 'EXTRACT'],
+    ['endless', 'ENDLESS'],
+    ['daily', 'DAILY'],
+  ]
+    .map(([id, name]) =>
+      action(
+        name,
+        'mode',
+        mode === id ? 'selected' : '',
+        `data-value="${id}" aria-pressed="${mode === id}"`,
+      ),
+    )
+    .join(
+      '',
+    )}</div><p class="selection-description">${mode === 'daily' ? 'A shared daily seed. Nomad. Red Forest. No bunker bonuses. Local scores only.' : mode === 'endless' ? 'No rescue is coming. Survive as long as you can.' : 'Eight minutes. Three titans. Hold the extraction beacon to get home.'}</p><div class="sector-note"><i></i>${z.subtitle}<span>FIELD BUILD 0.2</span></div></div></div>`;
 }
-function syncUI() {
+function workshopScreen() {
+  return `<div class="menu-page">${navigation()}${heading('PERMANENT PROGRESSION', 'THE BUNKER.', 'Bring something back. Make the next run count.')}<div class="research-grid">${RESEARCH.map(
+    (r) => {
+      const rank = profile.research[r.id] || 0,
+        cost = r.cost * (rank + 1);
+      return `<article class="research-card"><span class="research-icon">${r.icon}</span><div class="eyebrow">RESEARCH / ${rank} OF ${r.cap}</div><h2>${r.name}</h2><p>${r.description}</p><div class="rank-track">${Array.from({ length: r.cap }, (_, i) => `<i class="${i < rank ? 'filled' : ''}"></i>`).join('')}</div>${action(rank === r.cap ? 'FULLY RESEARCHED' : `RESEARCH <span>◈ ${cost}</span>`, 'research', 'secondary', `data-value="${r.id}" ${rank === r.cap || profile.scrap < cost ? 'disabled' : ''}`)}</article>`;
+    },
+  ).join(
+    '',
+  )}</div><div class="section-label">FIELD BOUNTIES <span>RESET EVERY RUN</span></div><div class="bounties"><div><strong>100 infected</strong><span>Clear the field</span><b>◈ 25</b></div><div><strong>3 supply caches</strong><span>Leave nothing behind</span><b>◈ 30</b></div><div><strong>1 titan</strong><span>Bring down a giant</span><b>◈ 40</b></div></div><p class="subtle">Salvage also recruits operators and opens sectors on the deployment screen.</p>${!storageAvailable ? '<p class="storage-warning">Browser storage is unavailable. Progress will not persist after closing.</p>' : ''}</div>`;
+}
+function recordsScreen() {
+  return `<div class="menu-page">${navigation()}${heading('EVERY RUN LEAVES A MARK', 'FIELD RECORDS.')}<div class="record-stats"><div><strong>${profile.runs}</strong><span>DEPLOYMENTS</span></div><div><strong>${profile.wins}</strong><span>EXTRACTIONS</span></div><div><strong>${profile.kills}</strong><span>INFECTED DOWN</span></div><div><strong>${formatTime(profile.best)}</strong><span>LONGEST RUN</span></div></div><div class="section-label">COMMENDATIONS <span>${profile.achievements.length} / ${ACHIEVEMENTS.length}</span></div><div class="achievement-grid">${ACHIEVEMENTS.map((a) => `<div class="achievement ${profile.achievements.includes(a.id) ? 'earned' : ''}"><span>${profile.achievements.includes(a.id) ? '✦' : '◇'}</span><div><strong>${a.name}</strong><p>${a.description}</p></div><small>◈ ${a.reward}</small></div>`).join('')}</div><div class="section-label">RECENT OPERATIONS</div>${profile.history.length ? `<div class="history">${profile.history.map((r) => `<div><span class="${r.won ? 'success' : ''}">${r.won ? 'EXTRACTED' : 'SIGNAL LOST'}</span><strong>${ZONES.find((z) => z.id === r.zone).name}</strong><span>${r.kills} KILLS</span><b>${formatTime(r.time)}</b></div>`).join('')}</div>` : '<p class="subtle">No field records yet. The zone is waiting.</p>'}</div>`;
+}
+function guideScreen() {
+  return `<div class="menu-page">${navigation()}${heading('READ THIS. STAY ALIVE.', 'FIELD MANUAL.')}<div class="guide-grid"><article><span>01</span><h2>Keep your thumb moving.</h2><p>Touch and drag anywhere on the field. A floating stick follows your thumb. Drag a little to walk, further to run. Weapons aim and fire automatically. A mouse drag works too.</p></article><article><span>02</span><h2>Use both hands.</h2><p>Keep moving with one thumb. Tap Dash with the other to slip through danger. Shockwave clears nearby enemies and incoming projectiles. Both recharge automatically.</p></article><article><span>03</span><h2>Become the hazard.</h2><p>Green cores grant experience. Each level offers three mutations. Build an arsenal or specialize. Two rerolls per run. Supply caches restore health, award salvage, and draw in nearby cores.</p></article><article><span>04</span><h2>Get home.</h2><p>Titans arrive at 1:30, 3:30, and 6:30. Dodge their projectile rings and radiation warnings. At 8:00, follow the cyan marker. Stay inside the beacon for eight seconds to extract. Endless mode has no extraction.</p></article></div><div class="section-label">WEAPON EVOLUTIONS <span>LEVEL 5 + REQUIRED MUTATION</span></div><div class="evolution-list">${[
+    ['carbine', 'Railstorm', 'Depleted uranium'],
+    ['arc', 'Thunder God', 'Deadeye'],
+    ['orbit', 'Death Halo', 'Lead skin'],
+    ['pulse', 'Supernova', 'Unstable isotope'],
+    ['mine', 'Hellfire', 'Hot rounds'],
+  ]
+    .map(
+      ([id, name, req]) =>
+        `<div><span style="color:${WEAPONS[id].color}">${WEAPONS[id].icon}</span><strong>${WEAPONS[id].name} <i>→ ${name}</i></strong><small>${req}</small></div>`,
+    )
+    .join(
+      '',
+    )}</div><div class="install-help"><h2>Take the zone with you.</h2><p>On iPhone or iPad: open in Safari, tap Share, then Add to Home Screen. On Android: choose Install app from the browser menu. After one complete online load, the installed game can launch offline. Progress is stored on this device; clearing site data removes it.</p>${action(installPrompt ? 'INSTALL GAME ↗' : 'INSTALL / HOME SCREEN', 'install', 'secondary')}</div></div>`;
+}
+function settingsScreen() {
+  return `<div class="menu-page settings-page"><div class="menu-nav">${action('← BACK', 'settings-back', 'text-button')}</div>${heading('MAKE YOURSELF AT HOME', 'FIELD SETTINGS.')}<div class="settings-list">${[
+    ['sound', 'Sound effects', 'Procedural audio. No external downloads.'],
+    [
+      'haptics',
+      'Haptic feedback',
+      'A little kick when it matters. Supported devices only.',
+    ],
+    ['shake', 'Screen shake', 'Camera impact during explosions and damage.'],
+    [
+      'quality',
+      'Visual quality',
+      'Low reduces particle atmosphere and display resolution.',
+    ],
+  ]
+    .map(
+      ([id, title, desc]) =>
+        `<button data-action="setting" data-value="${id}" aria-pressed="${id === 'quality' ? profile.settings.quality === 'high' : profile.settings[id]}"><span><strong>${title}</strong><small>${desc}</small></span><b>${id === 'quality' ? profile.settings.quality.toUpperCase() : profile.settings[id] ? 'ON' : 'OFF'}</b></button>`,
+    )
+    .join(
+      '',
+    )}</div>${action('ENTER / EXIT FULLSCREEN ↗', 'fullscreen', 'secondary')}<p class="subtle">Installed mode fills the screen without the browser toolbar. Progress saves automatically after each run.</p></div>`;
+}
+function pauseScreen() {
+  return `<div class="pause-page">${heading('SIGNAL ON HOLD', 'TAKE A BREATH.', 'The zone can wait.')}<div class="run-summary"><span>${formatTime(game.time)} SURVIVED</span><span>${game.kills} KILLS</span><span>LEVEL ${game.level}</span></div><div class="pause-actions">${action('BACK TO THE FIELD ↗', 'resume')}${action('SETTINGS', 'settings', 'secondary')}${action('END OPERATION', 'abandon', 'text-button')}</div><div class="section-label">CURRENT ARSENAL</div><div class="pause-weapons">${Object.entries(
+    game.weapons,
+  )
+    .map(
+      ([id, w]) =>
+        `<span>${WEAPONS[id].icon} ${WEAPONS[id].name} <b>LV ${w.level}${w.evolved ? ' · EVOLVED' : ''}</b></span>`,
+    )
+    .join(
+      '',
+    )}</div><div class="section-label">ACTIVE BOUNTIES</div><div class="pause-contracts"><span>${Math.min(100, game.kills)} / 100 INFECTED</span><span>${Math.min(3, game.crates)} / 3 CACHES</span><span>${Math.min(1, game.bossKills)} / 1 TITAN</span></div></div>`;
+}
+function upgradeScreen() {
+  return `<div class="upgrade-page">${heading(`LEVEL ${game.level} / ADAPTATION AVAILABLE`, 'EVOLVE OR DIE.', 'Take what the fallout gives you.')}<div class="choices">${game.choices
+    .map((u) => {
+      const w = game.weapons[u.id],
+        rank = w ? w.level : game.modifications[u.id] || 0;
+      return `<button class="choice ${u.rarity === 'WEAPON' ? 'weapon-choice' : ''}" data-action="upgrade" data-value="${u.id}"><div class="choice-top"><span>${u.rarity}</span><small>${rank ? `RANK ${rank} → ${rank + 1}` : 'NEW'}</small></div><div class="choice-icon">${u.icon}</div><h2>${u.name}</h2><p>${u.description}</p><div class="choice-bottom">${w?.level === 4 ? 'EVOLUTION WITH MATCHING MUTATION' : 'INSTALL MODIFICATION'} <b>↗</b></div></button>`;
+    })
+    .join(
+      '',
+    )}</div><div class="upgrade-footer"><span>${game.pendingLevels > 1 ? `${game.pendingLevels - 1} MORE ADAPTATIONS QUEUED` : 'FIELD SIMULATION PAUSED'}</span>${action(`↻ REROLL (${game.rerolls})`, 'reroll', 'text-button', game.rerolls ? '' : 'disabled')}</div></div>`;
+}
+function endScreen() {
+  if (!result) {
+    clearCheckpoint();
+    result = settleRun(profile, game);
+    save();
+    tone(game.state === 'won' ? 600 : 100, 0.4);
+  }
+  const won = game.state === 'won';
+  return `<div class="end-page"><div class="end-icon">${won ? '✦' : '☢'}</div>${heading(won ? 'EXTRACTION CONFIRMED' : 'OPERATOR SIGNAL LOST', won ? 'ANOTHER<br><em>SUNRISE.</em>' : 'THE ZONE<br><em>REMEMBERS.</em>', won ? 'You brought yourself home. That’s enough for today.' : 'Every run leaves something behind. Make it count.')}<div class="record-stats"><div><strong>${formatTime(game.time)}</strong><span>SURVIVED</span></div><div><strong>${game.kills}</strong><span>INFECTED</span></div><div><strong>${game.bossKills}</strong><span>TITANS</span></div><div><strong>${game.level}</strong><span>LEVEL</span></div></div><div class="salvage-earned"><span>SALVAGE RECOVERED</span><strong>+${result?.earned || 0} ◈</strong></div>${result?.unlocked.length ? `<div class="unlocked">${result.unlocked.map((a) => `<span>✦ ${a.name} <b>+${a.reward} ◈</b></span>`).join('')}</div>` : ''}<div class="end-actions">${action('ONE MORE RUN ↗', 'start')}${action('RETURN TO BUNKER', 'home', 'secondary')}</div></div>`;
+}
+function renderUI() {
+  const playing = game.state === 'playing',
+    inRun = screen === 'run';
+  $('hud').hidden = !playing;
+  $('overlay').hidden = playing;
+  $('update-banner').hidden = !waitingWorker || game.state !== 'ready';
+  const stamp = `${screen}:${game.state}:${game.level}:${game.pendingLevels}:${game.rerolls}`;
+  if (stamp !== overlayStamp && !playing) {
+    overlayStamp = stamp;
+    const html =
+      screen === 'settings'
+        ? settingsScreen()
+        : screen === 'confirm'
+          ? `<div class="pause-page">${heading('RETURN TO BUNKER', 'END THIS RUN?', 'Your collected salvage will be recovered. This operation cannot be resumed.')}<div class="pause-actions">${action('KEEP FIGHTING', 'cancel-abandon')}${action('END OPERATION', 'confirm-abandon', 'secondary')}</div></div>`
+          : !inRun
+            ? (
+                {
+                  home: homeScreen,
+                  workshop: workshopScreen,
+                  records: recordsScreen,
+                  guide: guideScreen,
+                }[screen] || homeScreen
+              )()
+            : game.state === 'upgrade'
+              ? upgradeScreen()
+              : game.state === 'paused'
+                ? pauseScreen()
+                : ['dead', 'won'].includes(game.state)
+                  ? endScreen()
+                  : homeScreen();
+    $('overlay').innerHTML = html;
+    $('overlay').scrollTop = 0;
+  }
+  if (!playing) return;
   const p = game.player;
-  $('timer').innerHTML = `${formatTime(game.time)} <small>/ 05:00</small>`;
-  $('extraction').textContent = formatTime(DURATION - game.time);
-  $('kills').textContent = `${game.kills} KILLS`;
-  $('level').textContent = `LVL ${String(game.level).padStart(2, '0')}`;
+  $('operator-label').textContent = game.operator.name.toUpperCase();
   $('health-label').textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`;
   $('health').style.width = `${(p.hp / p.maxHp) * 100}%`;
+  $('health').classList.toggle('critical', p.hp / p.maxHp < 0.3);
+  $('level').textContent = `LV ${game.level}`;
+  $('kills').textContent = `${game.kills} KILLS`;
+  $('timer').textContent = formatTime(game.time);
+  $('phase').textContent =
+    game.mode === 'endless'
+      ? 'NO EXTRACTION'
+      : game.extraction
+        ? 'REACH THE BEACON'
+        : `EXTRACTION IN ${formatTime(Math.ceil(Math.max(0, DURATION - game.time)))}`;
   $('xp').style.width = `${(game.xp / game.xpNeeded) * 100}%`;
-  $('damage').innerHTML = `${p.damage} <small>DMG</small>`;
-  $('speed').innerHTML = `${p.speed} <small>U/S</small>`;
-  $('weapon-level').textContent =
-    `+${Object.values(game.modifications).reduce((a, b) => a + b, 0)}`;
-  $('upgrades').innerHTML =
-    Object.entries(game.modifications)
-      .map(
-        ([id, count]) =>
-          `<span>${UPGRADES.find((u) => u.id === id).name} <b>×${count}</b></span>`,
-      )
-      .join('') || 'No modifications installed.';
-  $('pause').hidden = game.state !== 'playing';
-  if (overlayState === game.state) return;
-  overlayState = game.state;
-  const overlay = $('overlay');
-  overlay.hidden = game.state === 'playing';
-  if (game.state === 'ready') {
-    overlay.innerHTML = `<div class="intro"><div class="warning-icon">☢</div><div class="eyebrow">WELCOME TO THE AFTERMATH</div><h2>One more<br>day alive.</h2><p>The forest is waking up.<br>Let’s make sure you get home.</p><button class="primary" id="start">ENTER THE ZONE <span>↗</span></button><div class="intro-note">WASD / ARROW KEYS TO MOVE<br>ON TOUCHSCREENS, DRAG TO MOVE · WEAPONS FIRE AUTOMATICALLY</div></div>`;
-    $('start').onclick = start;
-  } else if (game.state === 'paused') {
-    overlay.innerHTML = `<div class="intro"><div class="eyebrow">FIELD FEED SUSPENDED</div><h2>Catch your<br>breath.</h2><p>The zone can wait a moment.</p><button class="primary" id="resume">RESUME OPERATION <span>→</span></button></div>`;
-    $('resume').onclick = togglePause;
-  } else if (game.state === 'upgrade') {
-    tone(660, 0.15);
-    overlay.innerHTML = `<div class="upgrade-screen"><div class="eyebrow">LEVEL ${game.level} / MUTATION AVAILABLE</div><h2>Adapt to survive.</h2><p>Choose one modification for this run.</p><div class="choices">${game.choices.map((u) => `<button class="choice" data-upgrade="${u.id}"><span class="choice-icon">${u.icon}</span><strong>${u.name}</strong><span>${u.description}</span><small>INSTALL MODIFICATION ↗</small></button>`).join('')}</div></div>`;
-    overlay.querySelectorAll('[data-upgrade]').forEach((button) => {
-      button.onclick = () => {
-        applyUpgrade(game, button.dataset.upgrade);
-        overlayState = '';
-      };
-    });
-  } else if (game.state === 'dead' || game.state === 'won') {
-    best = Math.max(best, Math.floor(game.time));
-    try {
-      localStorage.setItem('nuclear-survivors-best', String(best));
-    } catch {
-      /* Runs still work without persistence. */
-    }
-    $('best').textContent = `${formatTime(best)} SURVIVED`;
-    overlay.innerHTML = `<div class="intro"><div class="eyebrow">${game.state === 'won' ? 'EXTRACTION SUCCESSFUL' : 'OPERATOR SIGNAL LOST'}</div><h2>${game.state === 'won' ? 'You made<br>it home.' : 'The zone<br>takes its toll.'}</h2><p>${formatTime(game.time)} survived · ${game.kills} kills · Level ${game.level}<br>${game.state === 'won' ? 'Another sunrise. Another chance.' : 'Every run is a lesson. Go again.'}</p><button class="primary" id="restart">${game.state === 'won' ? 'REDEPLOY' : 'TRY AGAIN'} <span>↻</span></button></div>`;
-    $('restart').onclick = start;
+  const boss = game.enemies.find((e) => e.type === 'boss');
+  $('boss-hud').hidden = !boss;
+  if (boss) {
+    $('boss-name').textContent = boss.name;
+    $('boss-health').style.width =
+      `${Math.max(0, (boss.hp / boss.maxHp) * 100)}%`;
   }
-  if (!overlay.hidden)
-    overlay.querySelector('button')?.focus({ preventScroll: true });
+  const message = game.eventUntil > game.time ? game.eventText : '';
+  if ($('announcement').textContent !== message)
+    $('announcement').textContent = message;
+  $('announcement').classList.toggle('visible', !!message);
+  const loadout = Object.entries(game.weapons)
+    .map(
+      ([id, w]) =>
+        `<div class="loadout-weapon ${w.evolved ? 'evolved' : ''}" title="${WEAPONS[id].name} level ${w.level}${w.evolved ? ', evolved' : ''}"><span style="color:${WEAPONS[id].color}">${WEAPONS[id].icon}</span><small>${w.evolved ? '✦' : w.level}</small></div>`,
+    )
+    .join('');
+  if ($('loadout').innerHTML !== loadout) $('loadout').innerHTML = loadout;
+  $('touch-hint').hidden = game.time > 8 || game.distance > 120;
+  for (const [id, timer, total] of [
+    ['dash', p.dashTimer, p.dashCooldown],
+    ['nova', p.novaTimer, p.novaCooldown],
+  ]) {
+    const el = $(id);
+    el.style.setProperty('--cooldown', `${(timer / total) * 100}%`);
+    el.classList.toggle('recharging', timer > 0);
+    el.querySelector('b').textContent = timer > 0 ? Math.ceil(timer) : '';
+    el.setAttribute(
+      'aria-label',
+      `${id === 'nova' ? 'Shockwave' : 'Dash'}${timer > 0 ? `, ready in ${Math.ceil(timer)} seconds` : ', ready'}`,
+    );
+  }
+  $('extract-hud').hidden =
+    !game.extraction || distance(p, game.extraction) > game.extraction.radius;
+  if (game.extraction) {
+    $('extract-percent').textContent =
+      `${Math.floor((game.extractProgress / 8) * 100)}%`;
+    $('extract-fill').style.width = `${(game.extractProgress / 8) * 100}%`;
+  }
 }
+let previousHp = game.player.hp,
+  previousState = game.state,
+  previousKills = 0;
 function frame(timestamp) {
-  const dt = last ? (timestamp - last) / 1000 : 0;
+  const dt = last ? Math.min(0.05, (timestamp - last) / 1000) : 0;
   last = timestamp;
-  const previousKills = game.kills;
-  update(game, dt, input(), { width, height });
-  if (game.kills > previousKills) tone(110, 0.045, 0.015);
-  render();
-  syncUI();
+  ambient += dt;
+  update(game, dt, input(), renderer.getView());
+  if (game.player.hp < previousHp - 1) {
+    haptic(25);
+    tone(65, 0.12);
+  }
+  if (game.kills > previousKills) tone(110, 0.045, 0.012);
+  checkpointClock += dt;
+  if (
+    (checkpointClock >= 5 && game.state === 'playing') ||
+    (previousState !== game.state && game.state === 'upgrade')
+  ) {
+    checkpoint();
+    checkpointClock = 0;
+  }
+  if (previousState !== game.state) {
+    pointer = null;
+    overlayStamp = '';
+  }
+  previousHp = game.player.hp;
+  previousState = game.state;
+  previousKills = game.kills;
+  renderer.render(game, profile.settings, pointer, ambient);
+  uiClock += dt;
+  if (uiClock >= 0.1 || overlayStamp === '') {
+    renderUI();
+    uiClock = 0;
+  }
   requestAnimationFrame(frame);
 }
+renderUI();
 requestAnimationFrame(frame);
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  navigator.serviceWorker
+    .register(`${import.meta.env.BASE_URL}sw.js`)
+    .then((reg) => {
+      const waiting = () => {
+        waitingWorker =
+          reg.waiting && navigator.serviceWorker.controller
+            ? reg.waiting
+            : null;
+        renderUI();
+      };
+      waiting();
+      reg.addEventListener('updatefound', () => {
+        reg.installing?.addEventListener('statechange', waiting);
+      });
+    })
+    .catch(() =>
+      toast('Offline install unavailable. The game still works online.'),
+    );
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing) location.reload();
+  });
+  $('apply-update').onclick = () => {
+    if (waitingWorker) {
+      refreshing = true;
+      waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+    }
+  };
+}

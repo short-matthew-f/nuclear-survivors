@@ -38,7 +38,7 @@ test('collecting cores pauses for an upgrade and handles multiple earned levels'
   collectXp(g, 19);
   assert.equal(g.level, 3);
   assert.equal(g.pendingLevels, 2);
-  assert.equal(g.xp, 0);
+  assert.equal(g.xp, 1);
   assert.equal(g.state, 'upgrade');
   assert.equal(new Set(g.choices.map((u) => u.id)).size, 3);
   applyUpgrade(g, g.choices[0].id);
@@ -89,12 +89,17 @@ test('paused and upgrade states freeze the simulation', () => {
     assert.equal(g.player.x, 0);
   }
 });
-test('surviving five minutes ends the run in victory', () => {
+test('extraction opens after eight minutes and requires holding the beacon', () => {
   const g = running();
+  g.bossIndex = 3;
   g.time = DURATION - 0.01;
   update(g, 0.02);
+  assert.equal(g.state, 'playing');
+  assert.ok(g.extraction);
+  g.player.x = g.extraction.x;
+  g.player.y = g.extraction.y;
+  for (let i = 0; i < 161; i++) update(g, 0.05);
   assert.equal(g.state, 'won');
-  assert.equal(g.time, DURATION);
 });
 test('long frames are clamped to avoid simulation jumps', () => {
   const g = running();
