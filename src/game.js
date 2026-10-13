@@ -5,7 +5,17 @@ import {
   OPERATORS,
   ZONES,
   BOSS_NAMES,
+  WEAPONS,
+  EVOLUTIONS,
+  DIFFICULTIES,
+  PERKS,
 } from './content.js';
+import {
+  updateExpedition,
+  makeElite,
+  missionReady,
+  missionGoals,
+} from './expedition.js';
 export { DURATION, UPGRADES } from './content.js';
 export const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 export function seededRandom(seed) {
@@ -30,12 +40,34 @@ export function createGame(random = Math.random, options = {}) {
     OPERATORS.find((o) => o.id === options.operator) || OPERATORS[0];
   const zone = ZONES.find((z) => z.id === options.zone) || ZONES[0];
   const research = options.research || {};
-  const hp = operator.hp + (research.vitality || 0) * 10;
+  const difficulty =
+    DIFFICULTIES.find((d) => d.id === options.difficulty) || DIFFICULTIES[1];
+  const perk = PERKS.find((p) => p.id === options.perk)?.id || 'none';
+  const hp =
+    operator.hp + (research.vitality || 0) * 10 + (perk === 'medic' ? 30 : 0);
   const g = {
     random,
     operator,
     zone,
     mode: options.mode || 'extraction',
+    difficulty,
+    perk,
+    chapter: options.chapter || null,
+    daily: options.daily || null,
+    extractionAt: DURATION,
+    overtime: false,
+    eventsCompleted: 0,
+    eventCounts: {},
+    rescues: 0,
+    eliteKills: 0,
+    enemyKills: {},
+    fieldEvent: null,
+    eventIndex: 0,
+    nextEvent: 40,
+    buffs: { overdrive: 0 },
+    revives: 0,
+    shotsFired: 0,
+    damageTaken: 0,
     state: 'ready',
     time: 0,
     kills: 0,
@@ -55,7 +87,7 @@ export function createGame(random = Math.random, options = {}) {
       speed: operator.speed,
       damage: 24,
       interval: 0.52,
-      magnet: 80 + (research.salvage || 0) * 15,
+      magnet: 80 + (research.salvage || 0) * 15 + (perk === 'magnet' ? 60 : 0),
       shots: 1,
       invulnerable: 0,
       armor: operator.id === 'bastion' ? 3 : 0,
@@ -105,7 +137,7 @@ export function createGame(random = Math.random, options = {}) {
     extraction: null,
     extractProgress: 0,
     contract: { kills: 0, crates: 0, boss: 0 },
-    rerolls: 2,
+    rerolls: perk === 'magnet' ? 3 : 2,
     settled: false,
   };
   return g;
@@ -164,7 +196,7 @@ export function applyUpgrade(g, id) {
     p.novaCooldown *= 0.85;
   }
   if (id === 'xp') p.xpBonus += 0.2;
-  if (['carbine', 'arc', 'orbit', 'pulse', 'mine'].includes(id)) {
+  if (Object.hasOwn(WEAPONS, id)) {
     if (!g.weapons[id]) g.weapons[id] = { level: 1, clock: 0, evolved: false };
     else g.weapons[id].level++;
   }
@@ -176,14 +208,8 @@ export function applyUpgrade(g, id) {
   return true;
 }
 export function checkEvolutions(g) {
-  const pairs = {
-    carbine: 'pierce',
-    arc: 'crit',
-    orbit: 'armor',
-    pulse: 'area',
-    mine: 'damage',
-  };
-  for (const [id, requirement] of Object.entries(pairs)) {
+  for (const [id, evolution] of Object.entries(EVOLUTIONS)) {
+    const requirement = evolution.mutation;
     const w = g.weapons[id];
     if (
       w &&
@@ -192,11 +218,7 @@ export function checkEvolutions(g) {
       (g.modifications[requirement] || 0) >= 1
     ) {
       w.evolved = true;
-      announce(
-        g,
-        `${{ carbine: 'RAILSTORM', arc: 'THUNDER GOD', orbit: 'DEATH HALO', pulse: 'SUPERNOVA', mine: 'HELLFIRE' }[id]} EVOLVED`,
-        6,
-      );
+      announce(g, `${evolution.name.toUpperCase()} EVOLVED`, 6);
     }
   }
 }
@@ -213,10 +235,19 @@ export function collectXp(g, amount) {
 export function hurtPlayer(g, damage) {
   const p = g.player;
   if (p.invulnerable > 0 || g.state !== 'playing') return;
-  p.hp = Math.max(0, p.hp - Math.max(1, damage - p.armor));
+  const received = Math.max(1, damage - p.armor);
+  g.damageTaken += Math.min(p.hp, received);
+  p.hp = Math.max(0, p.hp - received);
   p.invulnerable = 0.65;
   g.shake = 8;
-  if (p.hp === 0) g.state = 'dead';
+  if (p.hp === 0 && g.perk === 'phoenix' && g.revives === 0) {
+    g.revives++;
+    p.hp = p.maxHp * 0.5;
+    p.invulnerable = 5;
+    g.hostile = [];
+    burst(g, p.x, p.y, '#fff0ad', 30);
+    announce(g, 'LAST LIGHT · ONE MORE CHANCE', 5);
+  } else if (p.hp === 0) g.state = 'dead';
 }
 export function burst(g, x, y, color, count = 8) {
   for (let i = 0; i < count; i++) {
@@ -236,7 +267,12 @@ export function burst(g, x, y, color, count = 8) {
 export function hitEnemy(g, e, amount) {
   if (e.hp <= 0) return;
   const critical = g.random() < g.player.crit;
-  const damage = amount * g.player.power * (critical ? 2 : 1);
+  const damage =
+    amount *
+    g.player.power *
+    (critical ? 2 : 1) *
+    (g.buffs.overdrive > 0 ? 1.6 : 1) *
+    (g.perk === 'hunter' && (e.elite || e.type === 'boss') ? 1.25 : 1);
   e.hp -= damage;
   e.hit = 0.12;
   g.damageDealt += damage;
@@ -250,6 +286,11 @@ export function hitEnemy(g, e, amount) {
     });
   if (e.hp > 0) return;
   g.kills++;
+  g.enemyKills[e.type] = (g.enemyKills[e.type] || 0) + 1;
+  if (e.elite) {
+    g.eliteKills++;
+    g.scrap += 8;
+  }
   g.cores.push({ x: e.x, y: e.y, value: e.xp || 1 });
   burst(g, e.x, e.y, e.color || '#b8ce83', e.type === 'boss' ? 30 : 5);
   if (g.random() < 0.09)
@@ -276,10 +317,11 @@ export function spawnEnemy(g, type = 'walker', x, y, scale = 1) {
     angle = g.random() * Math.PI * 2;
   const radius = 520;
   const growth = 1 + g.time / 360;
-  const hp = spec.hp * growth * g.zone.difficulty * scale;
+  const hp = spec.hp * growth * g.zone.difficulty * scale * g.difficulty.scale;
   const e = {
     ...spec,
     type,
+    damage: spec.damage * g.difficulty.scale,
     id: g.nextId++,
     x: x ?? g.player.x + Math.cos(angle) * radius,
     y: y ?? g.player.y + Math.sin(angle) * radius,
@@ -388,6 +430,46 @@ function weapons(g, dt) {
       continue;
     }
     if (w.clock > 0 || (!target && id !== 'mine')) continue;
+    if (id === 'scatter' || id === 'drone') {
+      const scatter = id === 'scatter';
+      const shots = scatter
+        ? 4 + w.level + (w.evolved ? 6 : 0)
+        : Math.ceil(w.level / 2) + (w.evolved ? 3 : 0);
+      for (let i = 0; i < shots; i++) {
+        const a = p.angle + (i - (shots - 1) / 2) * (scatter ? 0.12 : 0.06);
+        const launch = scatter
+          ? p
+          : {
+              x: p.x + Math.cos(g.time * 1.5 + i * 2.1) * 45,
+              y: p.y + Math.sin(g.time * 1.5 + i * 2.1) * 45,
+            };
+        const aim = scatter
+          ? a
+          : Math.atan2(target.y - launch.y, target.x - launch.x);
+        g.bullets.push({
+          x: launch.x,
+          y: launch.y,
+          vx: Math.cos(aim) * (scatter ? 540 : 580),
+          vy: Math.sin(aim) * (scatter ? 540 : 580),
+          damage: scatter ? 14 + w.level * 4 : 20 + w.level * 9,
+          life: scatter ? 0.42 * p.area : 1.2,
+          pierce: scatter ? 1 + Number(w.evolved) : Number(w.evolved),
+          hits: new Set(),
+          color: scatter ? '#ffb384' : '#a6c9ff',
+        });
+      }
+      w.clock = (scatter ? 1.25 : 0.9) * p.haste * (w.evolved ? 0.65 : 1);
+      g.shotsFired += shots;
+      g.effects.push({
+        kind: 'ring',
+        x: p.x + Math.cos(p.angle) * 22,
+        y: p.y + Math.sin(p.angle) * 22,
+        radius: scatter ? 30 : 12,
+        life: 0.15,
+        maxLife: 0.15,
+        color: scatter ? '#ffb384' : '#a6c9ff',
+      });
+    }
     if (id === 'carbine') {
       const shots = p.shots + (w.evolved ? 2 : 0),
         damage = p.damage * (1 + (w.level - 1) * 0.25);
@@ -405,6 +487,16 @@ function weapons(g, dt) {
           color: w.evolved ? '#b7f6f4' : '#f8dc91',
         });
       }
+      g.shotsFired += shots;
+      g.effects.push({
+        kind: 'ring',
+        x: p.x + Math.cos(p.angle) * 30,
+        y: p.y + Math.sin(p.angle) * 30,
+        radius: 13,
+        life: 0.1,
+        maxLife: 0.1,
+        color: '#ffe1a0',
+      });
       w.clock = p.interval * p.haste * (w.evolved ? 0.65 : 1);
     }
     if (id === 'arc') {
@@ -506,7 +598,13 @@ export function update(
     if (g.time > 210 && roll > 0.3 && roll < 0.42) type = 'splitter';
     const a = g.random() * Math.PI * 2,
       r = Math.hypot(view.width, view.height) / 2 + 45;
-    spawnEnemy(g, type, p.x + Math.cos(a) * r, p.y + Math.sin(a) * r);
+    const spawned = spawnEnemy(
+      g,
+      type,
+      p.x + Math.cos(a) * r,
+      p.y + Math.sin(a) * r,
+    );
+    if (g.time > 60 && g.random() < 0.07) makeElite(spawned);
     g.spawnClock =
       (Math.max(0.15, 0.7 - g.time * 0.001) *
         (g.time < g.hordeUntil ? 0.32 : 1)) /
@@ -523,7 +621,13 @@ export function update(
     announce(g, `TITAN SIGNAL · ${boss.name.toUpperCase()}`, 6);
   }
   if (
-    g.mode === 'endless' &&
+    (g.mode === 'endless' ||
+      g.overtime ||
+      (g.chapter &&
+        missionGoals(g).some(
+          (goal) => goal.kind === 'boss' && goal.progress < goal.target,
+        ) &&
+        !g.enemies.some((e) => e.type === 'boss' && e.hp > 0))) &&
     g.bossIndex >= 3 &&
     g.time >= 390 + (g.bossIndex - 2) * 90
   ) {
@@ -537,7 +641,9 @@ export function update(
   if (g.time >= g.nextSupply) {
     g.supplies.push({
       ...randomNearby(g, 220),
-      kind: g.random() < 0.3 ? 'medkit' : 'crate',
+      kind: ['medkit', 'crate', 'crate', 'overdrive', 'vacuum', 'shield'][
+        Math.floor(g.random() * 6)
+      ],
       id: g.nextId++,
     });
     g.nextSupply += 28;
@@ -621,6 +727,7 @@ export function update(
     if (distance(e, p) < e.radius + 12) hurtPlayer(g, e.damage || 12);
   }
   if (g.state === 'dead') return;
+  updateExpedition(g, dt);
   weapons(g, dt);
   for (const b of g.bullets) {
     const old = { x: b.x, y: b.y };
@@ -655,7 +762,7 @@ export function update(
     b.y += b.vy * dt;
     b.life -= dt;
     if (distance(b, p) < b.radius + 11) {
-      hurtPlayer(g, 12);
+      hurtPlayer(g, 12 * g.difficulty.scale);
       b.life = 0;
     }
   }
@@ -693,7 +800,8 @@ export function update(
       if (h.friendly) {
         for (const e of g.enemies)
           if (distance(e, h) < h.radius) hitEnemy(g, e, 30 * dt);
-      } else if (distance(p, h) < h.radius) hurtPlayer(g, 8);
+      } else if (distance(p, h) < h.radius)
+        hurtPlayer(g, 8 * g.difficulty.scale);
     }
   }
   g.enemies = g.enemies.filter((e) => e.hp > 0 && distance(e, p) < 1800);
@@ -725,8 +833,24 @@ export function update(
   g.supplies = g.supplies.filter((s) => {
     if (distance(s, p) > 30) return distance(s, p) < 1800;
     if (s.kind === 'medkit') {
-      p.hp = Math.min(p.maxHp, p.hp + 35);
-      announce(g, 'MEDKIT · +35 HEALTH', 2);
+      const heal = g.perk === 'medic' ? 60 : 35;
+      p.hp = Math.min(p.maxHp, p.hp + heal);
+      announce(g, `MEDKIT · +${heal} HEALTH`, 2);
+    }
+    if (s.kind === 'overdrive') {
+      g.buffs.overdrive = 20;
+      announce(g, 'OVERDRIVE · +60% DAMAGE · 20 SECONDS', 3);
+    }
+    if (s.kind === 'shield') {
+      p.invulnerable = 8;
+      announce(g, 'ISOTOPE SHIELD · 8 SECONDS', 3);
+    }
+    if (s.kind === 'vacuum') {
+      for (const c of g.cores) {
+        c.x = p.x;
+        c.y = p.y;
+      }
+      announce(g, 'CORE VACUUM · ALL EXPERIENCE RECOVERED', 3);
     }
     if (s.kind === 'scrap') g.scrap += s.value;
     if (s.kind === 'crate') {
@@ -762,7 +886,7 @@ export function update(
   for (const e of g.effects) e.life -= dt;
   g.effects = g.effects.filter((e) => e.life > 0);
   contracts(g);
-  if (g.mode !== 'endless' && g.time >= DURATION) {
+  if (g.mode !== 'endless' && g.time >= g.extractionAt && missionReady(g)) {
     if (!g.extraction) {
       g.extraction = { x: p.x + 150, y: p.y, radius: 75 };
       announce(g, 'EXTRACTION OPEN · HOLD INSIDE THE BEACON', 8);

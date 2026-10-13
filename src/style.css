@@ -1671,3 +1671,393 @@ label {
     scroll-behavior: auto !important;
   }
 }
+
+/* Illustrated field edition. All artwork ships with the offline game. */
+.home-overlay {
+  background-image:
+    linear-gradient(90deg, #07110cf5, #08130b9e 55%, #08130b55), var(--key-art);
+  background-position:
+    center,
+    center 60%;
+  background-size: cover;
+  backdrop-filter: none;
+}
+.brand-mark {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.brand-mark small {
+  font: 9px monospace;
+  letter-spacing: 3px;
+  color: #a8b392;
+}
+.home-links {
+  flex-wrap: wrap;
+}
+.operator-art,
+.codex-art {
+  display: block;
+  background-image: var(--characters);
+  background-size: 400% 300%;
+  background-repeat: no-repeat;
+}
+.operator-option .operator-art {
+  width: 100%;
+  height: 70px;
+  margin: 0;
+}
+.art-nomad {
+  background-position: 0 0;
+}
+.art-spark {
+  background-position: 33.333% 0;
+}
+.art-bastion {
+  background-position: 66.666% 0;
+}
+.difficulty-options,
+.backup-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 15px;
+}
+.difficulty-options button {
+  flex: 1;
+  padding: 12px 6px;
+  border: 1px solid var(--line);
+  background: #132319;
+  font: 10px monospace;
+  text-transform: uppercase;
+}
+.difficulty-options button.selected {
+  border-color: var(--acid);
+  color: var(--acid);
+}
+.kit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.kit-card {
+  padding: 22px;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: #101e16;
+}
+.kit-card.selected {
+  border-color: var(--acid);
+  background: #203223;
+}
+.kit-card > span {
+  display: block;
+  font: 30px monospace;
+  color: var(--acid);
+  margin-bottom: 16px;
+}
+.kit-card strong {
+  display: block;
+  font-size: 16px;
+}
+.kit-card p,
+.briefing p,
+.chapter-debrief p {
+  color: #acbaa0;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.kit-card small {
+  font: 8px monospace;
+  color: var(--acid);
+  line-height: 1.6;
+}
+.chapter-list {
+  margin: 30px 0;
+  display: grid;
+  gap: 8px;
+}
+.chapter-list button {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 18px;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: #101d14;
+}
+.chapter-list button.selected {
+  border-color: var(--acid);
+  background: #203124;
+}
+.chapter-list button > span {
+  font: 24px monospace;
+  color: var(--acid);
+}
+.chapter-list button div {
+  flex: 1;
+}
+.chapter-list strong,
+.chapter-list small {
+  display: block;
+}
+.chapter-list small {
+  margin-top: 6px;
+  color: #94a38a;
+  font: 10px monospace;
+}
+.chapter-list b {
+  font: 8px monospace;
+  color: var(--acid);
+}
+.briefing,
+.chapter-debrief {
+  padding: 26px;
+  border: 1px solid var(--line);
+  background: #132019;
+}
+.briefing .primary {
+  width: 100%;
+  margin-top: 16px;
+}
+.chapter-debrief {
+  margin: 22px 0;
+  text-align: left;
+}
+.chapter-debrief > strong {
+  color: var(--acid);
+  font: 10px monospace;
+  line-height: 1.8;
+}
+.codex-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 32px;
+}
+.codex-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  border: 1px solid var(--line);
+  padding: 20px;
+  background: #101d14;
+}
+.codex-art {
+  width: 100px;
+  height: 90px;
+  flex-shrink: 0;
+}
+.codex-card h2 {
+  font-size: 18px;
+  margin: 8px 0;
+}
+.codex-card p {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #a5b39a;
+}
+.codex-card small {
+  font: 8px monospace;
+  color: #cfb889;
+}
+.enemy-art-walker {
+  background-position: 100% 0;
+}
+.enemy-art-runner {
+  background-position: 0 50%;
+}
+.enemy-art-brute {
+  background-position: 33.333% 50%;
+}
+.enemy-art-spitter {
+  background-position: 66.666% 50%;
+}
+.enemy-art-charger {
+  background-position: 100% 50%;
+}
+.enemy-art-splitter {
+  background-position: 0 100%;
+}
+.enemy-art-boss {
+  background-position: 33.333% 100%;
+}
+#field-objective {
+  position: absolute;
+  top: max(170px, calc(env(safe-area-inset-top) + 150px));
+  left: max(18px, env(safe-area-inset-left));
+  width: 154px;
+  padding: 10px;
+  background: #101d19eb;
+  border-left: 2px solid #a3cdb9;
+}
+#field-objective strong {
+  display: block;
+  font: 8px monospace;
+  letter-spacing: 1px;
+  color: #c3e5cd;
+}
+#field-objective small {
+  display: block;
+  margin-top: 6px;
+  font: 8px monospace;
+  color: #9dae94;
+}
+#field-objective > div {
+  height: 3px;
+  margin-top: 8px;
+  background: #304135;
+}
+#objective-progress {
+  display: block;
+  height: 100%;
+  background: #bbefd3;
+}
+#buff-status {
+  position: absolute;
+  top: max(128px, calc(env(safe-area-inset-top) + 112px));
+  left: 20px;
+  font: 9px monospace;
+  color: #b4d4ff;
+}
+#overtime {
+  position: absolute;
+  bottom: max(120px, calc(env(safe-area-inset-bottom) + 100px));
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 14px 20px;
+  border: 1px solid #e3bc84;
+  background: #2e2519f5;
+  font: bold 11px monospace;
+  color: #f5d4a5;
+  pointer-events: auto;
+}
+#overtime small {
+  display: block;
+  font: 7px monospace;
+  margin-top: 6px;
+}
+.left-handed .abilities {
+  right: auto;
+  left: max(18px, env(safe-area-inset-left));
+}
+.left-handed #loadout {
+  left: auto;
+  right: max(18px, env(safe-area-inset-right));
+}
+@media (max-width: 700px) {
+  .home-overlay {
+    background-image:
+      linear-gradient(180deg, #06100d66, #08120b99 270px, #08130cf5 530px),
+      var(--key-art);
+    background-attachment: local;
+    background-size:
+      auto,
+      auto 850px;
+    background-repeat: no-repeat;
+    background-position: top center;
+    background-color: #08130c;
+  }
+  .home-main {
+    padding-top: 16px;
+  }
+  .home-main .brand-mark {
+    margin-bottom: 30px;
+  }
+  .home-main .lede {
+    text-shadow: 0 2px 5px #000;
+  }
+  .operator-option .operator-art {
+    height: 64px;
+  }
+  .kit-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .kit-card {
+    padding: 16px;
+  }
+  .kit-card p {
+    font-size: 11px;
+  }
+  .kit-card strong {
+    font-size: 14px;
+  }
+  .chapter-list button {
+    padding: 14px 12px;
+    gap: 12px;
+  }
+  .chapter-list strong {
+    font-size: 13px;
+  }
+  .chapter-list small {
+    font-size: 8px;
+  }
+  .briefing,
+  .chapter-debrief {
+    padding: 20px;
+  }
+  .briefing h2 {
+    font-size: 20px;
+  }
+  .codex-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .codex-card {
+    padding: 16px 12px;
+    gap: 12px;
+  }
+  .codex-art {
+    width: 90px;
+    height: 80px;
+  }
+  .codex-card .eyebrow {
+    font-size: 7px;
+    letter-spacing: 1px;
+  }
+  .codex-card p {
+    font-size: 11px;
+  }
+  .backup-actions .secondary {
+    flex: 1;
+    font-size: 9px;
+    padding: 14px 10px;
+  }
+  #loadout {
+    max-width: 180px;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .loadout-weapon {
+    width: 31px;
+    height: 31px;
+    font-size: 18px;
+  }
+}
+.mission-list {
+  padding-left: 18px;
+  color: #d5e5c0;
+  font: 11px monospace;
+  line-height: 2;
+  margin: 20px 0;
+}
+#mission-hud {
+  position: absolute;
+  left: max(18px, env(safe-area-inset-left));
+  bottom: max(220px, calc(env(safe-area-inset-bottom) + 200px));
+  width: 155px;
+  padding: 8px;
+  background: #101b15d9;
+  border-left: 2px solid #a9c581;
+  color: #c5d5b2;
+  font: 8px monospace;
+  line-height: 1.8;
+}
+.left-handed #mission-hud {
+  left: auto;
+  right: max(18px, env(safe-area-inset-right));
+}
+#touch-hint {
+  top: 63%;
+  bottom: auto;
+}

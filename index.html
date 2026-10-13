@@ -51,6 +51,17 @@
         </div>
         <div id="announcement" role="status" aria-live="polite"></div>
         <div id="loadout"></div>
+        <div id="field-objective" hidden>
+          <strong id="objective-name"></strong
+          ><small id="objective-detail"></small
+          ><small id="objective-instruction"></small>
+          <div><i id="objective-progress"></i></div>
+        </div>
+        <div id="buff-status"></div>
+        <div id="mission-hud" hidden></div>
+        <button id="overtime" hidden>
+          OVERTIME ↗ <small>+4 MIN · +75% SALVAGE</small>
+        </button>
         <div id="touch-hint">
           DRAG ANYWHERE TO MOVE <span>WEAPONS FIRE AUTOMATICALLY</span>
         </div>
@@ -67,6 +78,12 @@
         </div>
       </div>
       <section id="overlay" class="overlay" aria-label="Game menu"></section>
+      <input
+        id="import-save"
+        type="file"
+        accept="application/json,.json"
+        hidden
+      />
       <div id="toast" role="status" aria-live="polite"></div>
       <div id="update-banner" hidden>
         New field build ready.<button id="apply-update">UPDATE</button>

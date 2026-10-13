@@ -31,3 +31,7 @@ The initial game is a vanilla JavaScript Canvas application built with Vite. App
 ## Expanded Game (Field Build 0.2)
 
 Keep simulation and content definitions browser-independent (`src/game.js`, `src/content.js`). Rendering belongs in `src/render.js`; menus, audio, and touch input in `src/main.js`. Progression persistence is in `src/profile.js`, and resumable operations in `src/checkpoint.js`. `assets/` is Vite's public directory and contains the PWA manifest and icons. The build plugin in `vite.config.js` generates the service worker. Do not register a worker during development, add external runtime asset dependencies, or introduce keyboard movement. Verify changes to saves, abilities, progression, or PWA behavior with meaningful tests in `tests/`. Gameplay fills the viewport; menus and essential controls overlay the arena.
+
+## Field Edition 1.0
+
+`src/expedition.js` owns field events, elite conversion, campaign objective queries, and overtime. `src/audio.js` synthesizes the score and effects after a user gesture. Campaign chapters, difficulties, field kits, and evolution requirements are defined in `src/content.js`. Preserve v2 profile and version-one checkpoint migration. The four original raster assets in `assets/art/` use regular atlases; their layouts and exact generation prompts are documented there. Add any new runtime public asset to both precache and content hashing in `vite.config.js`. Do not silently replace saves or remove the backup restoration confirmation.

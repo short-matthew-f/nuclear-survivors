@@ -11,16 +11,33 @@ import {
   distance,
 } from './game.js';
 import {
-  DURATION,
   OPERATORS,
   ZONES,
   WEAPONS,
   RESEARCH,
   ACHIEVEMENTS,
   UPGRADES,
+  CHAPTERS,
+  DIFFICULTIES,
+  PERKS,
+  FIELD_EVENTS,
+  ENEMIES,
+  LORE,
+  EVOLUTIONS,
 } from './content.js';
-import { SAVE_KEY, parseProfile, purchase, settleRun } from './profile.js';
+import {
+  SAVE_KEY,
+  parseProfile,
+  purchase,
+  settleRun,
+  selectPerk,
+  exportProfile,
+  importProfile,
+} from './profile.js';
+import { artUrl } from './art.js';
 import { createRenderer } from './render.js';
+import { commitOvertime, missionGoals, missionReady } from './expedition.js';
+import { createAudio } from './audio.js';
 import { CHECKPOINT_KEY, serializeRun, restoreRun } from './checkpoint.js';
 
 const $ = (id) => document.getElementById(id),
@@ -38,7 +55,11 @@ try {
 }
 let operator = 'nomad',
   zone = 'forest',
-  mode = 'extraction',
+  mode = 'campaign',
+  difficulty = 'survivor',
+  chapterId =
+    CHAPTERS.find((c) => !profile.chapters.includes(c.id))?.id ||
+    CHAPTERS[0].id,
   screen = 'home',
   game = createGame(),
   pointer = null,
@@ -46,7 +67,6 @@ let operator = 'nomad',
   ambient = 0,
   uiClock = 0,
   overlayStamp = '',
-  audio,
   result = null,
   installPrompt = null,
   waitingWorker = null,
@@ -93,29 +113,17 @@ function toast(text) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => $('toast').classList.remove('visible'), 3500);
 }
-function tone(frequency, duration = 0.1, volume = 0.035) {
-  if (!profile.settings.sound) return;
-  try {
-    audio ??= new (window.AudioContext || window.webkitAudioContext)();
-    audio.resume();
-    const osc = audio.createOscillator(),
-      gain = audio.createGain();
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(frequency, audio.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(
-      Math.max(30, frequency * 0.5),
-      audio.currentTime + duration,
-    );
-    gain.gain.setValueAtTime(volume, audio.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + duration);
-    osc.connect(gain);
-    gain.connect(audio.destination);
-    osc.start();
-    osc.stop(audio.currentTime + duration);
-  } catch {
-    /* Audio is optional on restricted browsers. */
-  }
-}
+const sound = createAudio(() => profile.settings);
+const tone = (...args) => sound.tone(...args);
+document.addEventListener('pointerdown', () => sound.unlock(), { once: true });
+document.documentElement.style.setProperty(
+  '--key-art',
+  `url("${artUrl('key-art.png', import.meta.env.BASE_URL, document.baseURI)}")`,
+);
+document.documentElement.style.setProperty(
+  '--characters',
+  `url("${artUrl('characters.png', import.meta.env.BASE_URL, document.baseURI)}")`,
+);
 function haptic(pattern = 12) {
   if (profile.settings.haptics) navigator.vibrate?.(pattern);
 }
@@ -135,15 +143,25 @@ function navigation() {
 }
 function start() {
   const daily = mode === 'daily',
+    chapter =
+      mode === 'campaign' ? CHAPTERS.find((c) => c.id === chapterId) : null,
     seed = new Date().toISOString().slice(0, 10);
   clearCheckpoint();
   game = createGame(
     seededRandom(daily ? seed : `${Date.now()}-${Math.random()}`),
     {
       operator: daily ? 'nomad' : operator,
-      zone: daily ? 'forest' : zone,
+      zone: daily ? 'forest' : chapter ? chapter.zone : zone,
       mode: mode === 'endless' ? 'endless' : 'extraction',
       research: daily ? {} : profile.research,
+      difficulty: daily
+        ? 'survivor'
+        : chapter
+          ? chapter.difficulty
+          : difficulty,
+      perk: daily ? 'none' : profile.perk,
+      chapter: chapter?.id || null,
+      daily: daily ? seed : null,
     },
   );
   game.state = 'playing';
@@ -221,6 +239,33 @@ window.addEventListener('keydown', (e) => {
   }
 });
 $('pause').onclick = pause;
+$('overtime').onclick = () => {
+  if (commitOvertime(game)) {
+    checkpoint();
+    tone(90, 0.5);
+    haptic([20, 30, 20]);
+  }
+};
+let pendingImport = null;
+$('import-save').onchange = async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  e.target.value = '';
+  if (file.size > 1000000) {
+    toast('This backup is too large.');
+    return;
+  }
+  try {
+    pendingImport = importProfile(await file.text());
+    if (!pendingImport) {
+      toast('This file is not a valid Nuclear Survivors backup.');
+      return;
+    }
+    menu('import-confirm');
+  } catch {
+    toast('Could not read that backup.');
+  }
+};
 $('dash').addEventListener('pointerdown', (e) => {
   e.preventDefault();
   if (activateDash(game, input())) {
@@ -277,7 +322,10 @@ $('overlay').addEventListener('click', async (e) => {
   const act = button.dataset.action;
   const value = button.dataset.value;
   tone(420, 0.035, 0.012);
-  if (act === 'start') start();
+  if (act === 'start') {
+    if (mode === 'campaign') menu('campaign');
+    else start();
+  } else if (act === 'deploy') start();
   else if (act === 'restore' && savedRun) {
     game = savedRun;
     savedRun = null;
@@ -285,7 +333,15 @@ $('overlay').addEventListener('click', async (e) => {
     overlayStamp = '';
     renderUI();
   } else if (
-    ['home', 'workshop', 'records', 'guide', 'settings'].includes(act)
+    [
+      'home',
+      'workshop',
+      'records',
+      'guide',
+      'settings',
+      'campaign',
+      'codex',
+    ].includes(act)
   ) {
     if (act === 'home' && ['dead', 'won'].includes(game.state))
       game = createGame(Math.random, { operator, zone });
@@ -313,6 +369,55 @@ $('overlay').addEventListener('click', async (e) => {
   } else if (act === 'mode') {
     mode = value;
     menu();
+  } else if (act === 'difficulty') {
+    if (value === 'veteran' && !profile.wins) return;
+    difficulty = value;
+    menu();
+  } else if (act === 'chapter') {
+    const index = CHAPTERS.findIndex((c) => c.id === value);
+    if (
+      index < 0 ||
+      !CHAPTERS.slice(0, index).every((c) => profile.chapters.includes(c.id))
+    )
+      return;
+    chapterId = value;
+    mode = 'campaign';
+    menu('campaign');
+  } else if (act === 'perk') {
+    if (selectPerk(profile, value)) {
+      save();
+      menu('workshop');
+    } else toast('Complete the listed commendation to unlock this kit.');
+  } else if (act === 'export') {
+    const blob = new Blob([exportProfile(profile)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob),
+      a = document.createElement('a');
+    a.href = url;
+    a.download = 'nuclear-survivors-backup.json';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast('Bunker backup exported. Keep it somewhere safe.');
+  } else if (act === 'import') {
+    $('import-save').click();
+  } else if (act === 'accept-import' && pendingImport) {
+    profile = pendingImport;
+    pendingImport = null;
+    save();
+    clearCheckpoint();
+    operator = 'nomad';
+    zone = 'forest';
+    game = createGame();
+    chapterId =
+      CHAPTERS.find((c) => !profile.chapters.includes(c.id))?.id ||
+      CHAPTERS[0].id;
+    resize();
+    menu('settings');
+    toast('Bunker backup restored.');
+  } else if (act === 'cancel-import') {
+    pendingImport = null;
+    menu('settings');
   } else if (act === 'research') {
     if (purchase(profile, 'research', value)) {
       save();
@@ -364,7 +469,8 @@ $('overlay').addEventListener('click', async (e) => {
 function homeScreen() {
   const o = OPERATORS.find((o) => o.id === operator),
     z = ZONES.find((z) => z.id === zone);
-  return `<div class="home"><div class="home-main"><div class="brand-mark">☢</div>${heading('A SURVIVAL ROGUELITE', 'NUCLEAR<br><em>SURVIVORS.</em>', 'The world ended. Your shift didn’t.')}<div class="home-actions">${savedRun ? action(`RESUME ${formatTime(savedRun.time)} OPERATION <span>↗</span>`, 'restore') + action('NEW OPERATION', 'start', 'secondary') : action('ENTER THE ZONE <span>↗</span>', 'start')}${action('THE BUNKER <span>◈</span>', 'workshop', 'secondary')}</div><div class="home-links">${action('FIELD GUIDE', 'guide', 'text-button')}${action('RUN ARCHIVE', 'records', 'text-button')}${action('SETTINGS', 'settings', 'text-button')}</div><div class="install-row">${action('⊕ INSTALL GAME', 'install', 'text-button')}<span>TOUCH TO MOVE · AUTO COMBAT</span></div></div><div class="deployment-panel"><div class="panel-heading"><span>PREPARE TO DEPLOY</span><span class="currency">◈ ${profile.scrap}</span></div><label>01 / OPERATOR</label><div class="operator-options">${OPERATORS.map((item) => `<button class="operator-option ${operator === item.id ? 'selected' : ''}" data-action="operator" data-value="${item.id}" aria-pressed="${operator === item.id}"><span style="color:${item.color}">${item.icon}</span><strong>${item.name}</strong><small>${profile.operators.includes(item.id) ? item.role : `◈ ${item.cost} TO RECRUIT`}</small></button>`).join('')}</div><p class="selection-description">${o.description}</p><label>02 / DROP ZONE</label><div class="zone-options">${ZONES.map((item) => `<button class="zone-option ${zone === item.id ? 'selected' : ''}" data-action="zone" data-value="${item.id}" aria-pressed="${zone === item.id}"><span class="zone-swatch ${item.id}"></span><span><strong>${item.name}</strong><small>${profile.zones.includes(item.id) ? item.label : `LOCKED · ◈ ${item.cost}`}</small></span><b>${zone === item.id ? '↗' : '+'}</b></button>`).join('')}</div><label>03 / OPERATION</label><div class="mode-options">${[
+  return `<div class="home"><div class="home-main"><div class="brand-mark">☢ <small>FIELD BUILD 1.0</small></div>${heading('A SURVIVAL ROGUELITE', 'NUCLEAR<br><em>SURVIVORS.</em>', 'The world ended. Your shift didn’t.')}<div class="home-actions">${savedRun ? action(`RESUME ${formatTime(savedRun.time)} OPERATION <span>↗</span>`, 'restore') + action('NEW OPERATION', 'start', 'secondary') : action('ENTER THE ZONE <span>↗</span>', 'start')}${action('THE BUNKER <span>◈</span>', 'workshop', 'secondary')}</div><div class="home-links">${action('FIELD GUIDE', 'guide', 'text-button')}${action('CODEX', 'codex', 'text-button')}${action('RUN ARCHIVE', 'records', 'text-button')}${action('SETTINGS', 'settings', 'text-button')}</div><div class="install-row">${action('⊕ INSTALL GAME', 'install', 'text-button')}<span>TOUCH TO MOVE · AUTO COMBAT</span></div></div><div class="deployment-panel"><div class="panel-heading"><span>PREPARE TO DEPLOY</span><span class="currency">◈ ${profile.scrap}</span></div><label>01 / OPERATOR</label><div class="operator-options">${OPERATORS.map((item) => `<button class="operator-option ${operator === item.id ? 'selected' : ''}" data-action="operator" data-value="${item.id}" aria-pressed="${operator === item.id}"><span class="operator-art art-${item.id}" aria-hidden="true"></span><strong>${item.name}</strong><small>${profile.operators.includes(item.id) ? item.role : `◈ ${item.cost} TO RECRUIT`}</small></button>`).join('')}</div><p class="selection-description">${o.description}</p><label>02 / DROP ZONE</label><div class="zone-options">${ZONES.map((item) => `<button class="zone-option ${zone === item.id ? 'selected' : ''}" data-action="zone" data-value="${item.id}" aria-pressed="${zone === item.id}"><span class="zone-swatch ${item.id}"></span><span><strong>${item.name}</strong><small>${profile.zones.includes(item.id) ? item.label : `LOCKED · ◈ ${item.cost}`}</small></span><b>${zone === item.id ? '↗' : '+'}</b></button>`).join('')}</div><label>03 / OPERATION</label><div class="mode-options">${[
+    ['campaign', 'STORY'],
     ['extraction', 'EXTRACT'],
     ['endless', 'ENDLESS'],
     ['daily', 'DAILY'],
@@ -379,7 +485,42 @@ function homeScreen() {
     )
     .join(
       '',
-    )}</div><p class="selection-description">${mode === 'daily' ? 'A shared daily seed. Nomad. Red Forest. No bunker bonuses. Local scores only.' : mode === 'endless' ? 'No rescue is coming. Survive as long as you can.' : 'Eight minutes. Three titans. Hold the extraction beacon to get home.'}</p><div class="sector-note"><i></i>${z.subtitle}<span>FIELD BUILD 0.2</span></div></div></div>`;
+    )}</div><p class="selection-description">${mode === 'campaign' ? `Five chapters. A world worth saving. ${profile.chapters.length} / ${CHAPTERS.length} complete.` : mode === 'daily' ? 'A shared daily seed. Nomad. Red Forest. No bunker bonuses. Local scores only.' : mode === 'endless' ? 'No rescue is coming. Survive as long as you can.' : 'Eight minutes. Three titans. Hold the extraction beacon to get home.'}</p>${mode !== 'daily' && mode !== 'campaign' ? `<label>04 / THREAT LEVEL</label><div class="difficulty-options">${DIFFICULTIES.map((d) => action(d.name, 'difficulty', difficulty === d.id ? 'selected' : '', `data-value="${d.id}" ${d.id === 'veteran' && !profile.wins ? 'disabled' : ''}`)).join('')}</div><p class="selection-description">${DIFFICULTIES.find((d) => d.id === difficulty).description}</p>` : ''}<div class="sector-note"><i></i>${z.subtitle}<span>BUILD 1.0</span></div></div></div>`;
+}
+function campaignScreen() {
+  const chapter = CHAPTERS.find((c) => c.id === chapterId) || CHAPTERS[0];
+  return `<div class="menu-page campaign-page">${navigation()}${heading('THE BUNKER SIX CHRONICLES', 'ONE MORE<br><em>SUNRISE.</em>', 'Five expeditions. One reason to come home.')}<div class="chapter-list">${CHAPTERS.map(
+    (c, i) => {
+      const done = profile.chapters.includes(c.id);
+      const available = CHAPTERS.slice(0, i).every((c) =>
+        profile.chapters.includes(c.id),
+      );
+      return `<button data-action="chapter" data-value="${c.id}" class="${chapter.id === c.id ? 'selected' : ''}" ${available ? '' : 'disabled'}><span>${done ? '✦' : String(i + 1).padStart(2, '0')}</span><div><strong>${c.title}</strong><small>${ZONES.find((z) => z.id === c.zone).name} · ${DIFFICULTIES.find((d) => d.id === c.difficulty).name}</small></div><b>${done ? 'REPLAY' : available ? 'READY' : 'LOCKED'}</b></button>`;
+    },
+  ).join(
+    '',
+  )}</div><article class="briefing"><div class="eyebrow">MISSION BRIEFING / ${chapter.id.toUpperCase()}</div><h2>${chapter.title}</h2><p>${chapter.briefing}</p><ul class="mission-list">${chapter.goals.map((goal) => `<li>${goal.label}</li>`).join('')}<li>Survive eight minutes and extract alive</li></ul><div class="run-summary"><span>${ZONES.find((z) => z.id === chapter.zone).name.toUpperCase()}</span><span>${DIFFICULTIES.find((d) => d.id === chapter.difficulty).name.toUpperCase()}</span><span>${profile.chapters.includes(chapter.id) ? 'CHAPTER REWARD CLAIMED' : `FIRST CLEAR: ◈ ${chapter.reward}`}</span></div>${action('DEPLOY TO SECTOR ↗', 'deploy')}</article></div>`;
+}
+function codexScreen() {
+  return `<div class="menu-page">${navigation()}${heading('KNOW WHAT HUNTS YOU', 'ZONE CODEX.', 'Recovered field intelligence. Updated after every operation.')}<div class="codex-grid">${Object.entries(
+    ENEMIES,
+  )
+    .map(
+      ([id, e]) =>
+        `<article class="codex-card"><div class="codex-art enemy-art-${id}" aria-hidden="true"></div><div><div class="eyebrow">${profile.enemyKills[id] || 0} CONFIRMED KILLS</div><h2>${e.name}</h2><p>${LORE[id]}</p><small>BASE HP ${e.hp} · CONTACT ${e.damage}</small></div></article>`,
+    )
+    .join(
+      '',
+    )}</div><div class="section-label">SIGNALS WORTH FOLLOWING</div><div class="guide-grid">${Object.values(
+    FIELD_EVENTS,
+  )
+    .map(
+      (e) =>
+        `<article><span>${e.icon}</span><h2>${e.name}</h2><p>${e.instruction}. Stay within the marked circle for ${e.duration} seconds. Earn ${e.reward} salvage plus supplies. Signals expire after 80 seconds.</p></article>`,
+    )
+    .join(
+      '',
+    )}</div><p class="subtle">Elite infected have an amber ring, tougher armor, and carry extra salvage. Dash through gaps and use Shockwave to clear hostile projectiles.</p></div>`;
 }
 function workshopScreen() {
   return `<div class="menu-page">${navigation()}${heading('PERMANENT PROGRESSION', 'THE BUNKER.', 'Bring something back. Make the next run count.')}<div class="research-grid">${RESEARCH.map(
@@ -390,19 +531,28 @@ function workshopScreen() {
     },
   ).join(
     '',
+  )}</div><div class="section-label">FIELD KITS <span>EQUIP ONE PER OPERATION</span></div><div class="kit-grid">${PERKS.map(
+    (p) => {
+      const unlocked =
+        !p.requirement || profile.achievements.includes(p.requirement);
+      return `<button class="kit-card ${profile.perk === p.id ? 'selected' : ''}" data-action="perk" data-value="${p.id}" aria-pressed="${profile.perk === p.id}"><span>${p.icon}</span><strong>${p.name}</strong><p>${p.description}</p><small>${profile.perk === p.id ? 'EQUIPPED' : unlocked ? 'EQUIP KIT ↗' : `UNLOCK: ${ACHIEVEMENTS.find((a) => a.id === p.requirement).name.toUpperCase()}`}</small></button>`;
+    },
+  ).join(
+    '',
   )}</div><div class="section-label">FIELD BOUNTIES <span>RESET EVERY RUN</span></div><div class="bounties"><div><strong>100 infected</strong><span>Clear the field</span><b>◈ 25</b></div><div><strong>3 supply caches</strong><span>Leave nothing behind</span><b>◈ 30</b></div><div><strong>1 titan</strong><span>Bring down a giant</span><b>◈ 40</b></div></div><p class="subtle">Salvage also recruits operators and opens sectors on the deployment screen.</p>${!storageAvailable ? '<p class="storage-warning">Browser storage is unavailable. Progress will not persist after closing.</p>' : ''}</div>`;
 }
 function recordsScreen() {
-  return `<div class="menu-page">${navigation()}${heading('EVERY RUN LEAVES A MARK', 'FIELD RECORDS.')}<div class="record-stats"><div><strong>${profile.runs}</strong><span>DEPLOYMENTS</span></div><div><strong>${profile.wins}</strong><span>EXTRACTIONS</span></div><div><strong>${profile.kills}</strong><span>INFECTED DOWN</span></div><div><strong>${formatTime(profile.best)}</strong><span>LONGEST RUN</span></div></div><div class="section-label">COMMENDATIONS <span>${profile.achievements.length} / ${ACHIEVEMENTS.length}</span></div><div class="achievement-grid">${ACHIEVEMENTS.map((a) => `<div class="achievement ${profile.achievements.includes(a.id) ? 'earned' : ''}"><span>${profile.achievements.includes(a.id) ? '✦' : '◇'}</span><div><strong>${a.name}</strong><p>${a.description}</p></div><small>◈ ${a.reward}</small></div>`).join('')}</div><div class="section-label">RECENT OPERATIONS</div>${profile.history.length ? `<div class="history">${profile.history.map((r) => `<div><span class="${r.won ? 'success' : ''}">${r.won ? 'EXTRACTED' : 'SIGNAL LOST'}</span><strong>${ZONES.find((z) => z.id === r.zone).name}</strong><span>${r.kills} KILLS</span><b>${formatTime(r.time)}</b></div>`).join('')}</div>` : '<p class="subtle">No field records yet. The zone is waiting.</p>'}</div>`;
+  return `<div class="menu-page">${navigation()}${heading('EVERY RUN LEAVES A MARK', 'FIELD RECORDS.')}<div class="record-stats"><div><strong>${profile.runs}</strong><span>DEPLOYMENTS</span></div><div><strong>${profile.wins}</strong><span>EXTRACTIONS</span></div><div><strong>${profile.kills}</strong><span>INFECTED DOWN</span></div><div><strong>${formatTime(profile.best)}</strong><span>LONGEST RUN</span></div></div><div class="section-label">COMMENDATIONS <span>${profile.achievements.length} / ${ACHIEVEMENTS.length}</span></div><div class="achievement-grid">${ACHIEVEMENTS.map((a) => `<div class="achievement ${profile.achievements.includes(a.id) ? 'earned' : ''}"><span>${profile.achievements.includes(a.id) ? '✦' : '◇'}</span><div><strong>${a.name}</strong><p>${a.description}</p></div><small>◈ ${a.reward}</small></div>`).join('')}</div>${profile.dailyScores.length ? `<div class="section-label">DAILY CHALLENGE <span>PERSONAL BESTS · UTC</span></div><div class="history">${profile.dailyScores.map((d) => `<div><span>${d.date}</span><strong>${d.score.toLocaleString()} PTS</strong><span>${d.won ? 'EXTRACTED' : 'SIGNAL LOST'}</span></div>`).join('')}</div>` : ''}<div class="section-label">RECENT OPERATIONS</div>${profile.history.length ? `<div class="history">${profile.history.map((r) => `<div><span class="${r.won ? 'success' : ''}">${r.won ? 'EXTRACTED' : 'SIGNAL LOST'}</span><strong>${ZONES.find((z) => z.id === r.zone).name}</strong><span>${r.kills} KILLS</span><b>${formatTime(r.time)}</b></div>`).join('')}</div>` : '<p class="subtle">No field records yet. The zone is waiting.</p>'}</div>`;
 }
 function guideScreen() {
-  return `<div class="menu-page">${navigation()}${heading('READ THIS. STAY ALIVE.', 'FIELD MANUAL.')}<div class="guide-grid"><article><span>01</span><h2>Keep your thumb moving.</h2><p>Touch and drag anywhere on the field. A floating stick follows your thumb. Drag a little to walk, further to run. Weapons aim and fire automatically. A mouse drag works too.</p></article><article><span>02</span><h2>Use both hands.</h2><p>Keep moving with one thumb. Tap Dash with the other to slip through danger. Shockwave clears nearby enemies and incoming projectiles. Both recharge automatically.</p></article><article><span>03</span><h2>Become the hazard.</h2><p>Green cores grant experience. Each level offers three mutations. Build an arsenal or specialize. Two rerolls per run. Supply caches restore health, award salvage, and draw in nearby cores.</p></article><article><span>04</span><h2>Get home.</h2><p>Titans arrive at 1:30, 3:30, and 6:30. Dodge their projectile rings and radiation warnings. At 8:00, follow the cyan marker. Stay inside the beacon for eight seconds to extract. Endless mode has no extraction.</p></article></div><div class="section-label">WEAPON EVOLUTIONS <span>LEVEL 5 + REQUIRED MUTATION</span></div><div class="evolution-list">${[
-    ['carbine', 'Railstorm', 'Depleted uranium'],
-    ['arc', 'Thunder God', 'Deadeye'],
-    ['orbit', 'Death Halo', 'Lead skin'],
-    ['pulse', 'Supernova', 'Unstable isotope'],
-    ['mine', 'Hellfire', 'Hot rounds'],
-  ]
+  return `<div class="menu-page">${navigation()}${heading('READ THIS. STAY ALIVE.', 'FIELD MANUAL.')}<div class="guide-grid"><article><span>01</span><h2>Keep your thumb moving.</h2><p>Touch and drag anywhere on the field. A floating stick follows your thumb. Drag a little to walk, further to run. Weapons aim and fire automatically. A mouse drag works too.</p></article><article><span>02</span><h2>Use both hands.</h2><p>Keep moving with one thumb. Tap Dash with the other to slip through danger. Shockwave clears nearby enemies and incoming projectiles. Both recharge automatically.</p></article><article><span>03</span><h2>Become the hazard.</h2><p>Green cores grant experience. Each level offers three mutations. Build an arsenal or specialize. Two rerolls per run. Supply caches restore health, award salvage, and draw in nearby cores.</p></article><article><span>04</span><h2>Get home.</h2><p>Titans arrive at 1:30, 3:30, and 6:30. Dodge their projectile rings and radiation warnings. At 8:00, follow the cyan marker. Stay inside the beacon for eight seconds to extract. Endless mode has no extraction. Once the beacon opens, you can choose Overtime: four more minutes for 75% bonus salvage, a full heal, and more titans.</p></article></div><div class="section-label">WEAPON EVOLUTIONS <span>LEVEL 5 + REQUIRED MUTATION</span></div><div class="evolution-list">${Object.entries(
+    EVOLUTIONS,
+  )
+    .map(([id, e]) => [
+      id,
+      e.name,
+      UPGRADES.find((u) => u.id === e.mutation).name,
+    ])
     .map(
       ([id, name, req]) =>
         `<div><span style="color:${WEAPONS[id].color}">${WEAPONS[id].icon}</span><strong>${WEAPONS[id].name} <i>→ ${name}</i></strong><small>${req}</small></div>`,
@@ -413,7 +563,27 @@ function guideScreen() {
 }
 function settingsScreen() {
   return `<div class="menu-page settings-page"><div class="menu-nav">${action('← BACK', 'settings-back', 'text-button')}</div>${heading('MAKE YOURSELF AT HOME', 'FIELD SETTINGS.')}<div class="settings-list">${[
-    ['sound', 'Sound effects', 'Procedural audio. No external downloads.'],
+    [
+      'sound',
+      'Sound effects',
+      'Weapon fire, impacts, abilities, and interface sounds.',
+    ],
+    ['music', 'Wasteland score', 'An original procedural ambient soundtrack.'],
+    [
+      'numbers',
+      'Damage numbers',
+      'Show damage and critical hit values in combat.',
+    ],
+    [
+      'radar',
+      'Field radar',
+      'Nearby threats, objectives, supplies, and extraction.',
+    ],
+    [
+      'leftHanded',
+      'Left-handed abilities',
+      'Move Dash and Shockwave to the left side.',
+    ],
     [
       'haptics',
       'Haptic feedback',
@@ -432,10 +602,10 @@ function settingsScreen() {
     )
     .join(
       '',
-    )}</div>${action('ENTER / EXIT FULLSCREEN ↗', 'fullscreen', 'secondary')}<p class="subtle">Installed mode fills the screen without the browser toolbar. Progress saves automatically after each run.</p></div>`;
+    )}</div>${action('ENTER / EXIT FULLSCREEN ↗', 'fullscreen', 'secondary')}<div class="backup-actions">${action('EXPORT SAVE', 'export', 'secondary')}${action('RESTORE BACKUP', 'import', 'secondary')}</div><p class="subtle">Installed mode fills the screen without the browser toolbar. Progress saves automatically after each run.</p></div>`;
 }
 function pauseScreen() {
-  return `<div class="pause-page">${heading('SIGNAL ON HOLD', 'TAKE A BREATH.', 'The zone can wait.')}<div class="run-summary"><span>${formatTime(game.time)} SURVIVED</span><span>${game.kills} KILLS</span><span>LEVEL ${game.level}</span></div><div class="pause-actions">${action('BACK TO THE FIELD ↗', 'resume')}${action('SETTINGS', 'settings', 'secondary')}${action('END OPERATION', 'abandon', 'text-button')}</div><div class="section-label">CURRENT ARSENAL</div><div class="pause-weapons">${Object.entries(
+  return `<div class="pause-page">${heading('SIGNAL ON HOLD', 'TAKE A BREATH.', 'The zone can wait.')}<div class="run-summary"><span>${formatTime(game.time)} SURVIVED</span><span>${game.kills} KILLS</span><span>LEVEL ${game.level}</span></div><div class="pause-actions">${action('BACK TO THE FIELD ↗', 'resume')}${action('SETTINGS', 'settings', 'secondary')}${action('END OPERATION', 'abandon', 'text-button')}</div><div class="run-summary"><span>${game.difficulty.name.toUpperCase()}</span><span>${game.eventsCompleted} EVENTS</span><span>${game.eliteKills} ELITES</span><span>◈ ${game.scrap} SALVAGE</span></div><div class="section-label">CURRENT ARSENAL</div><div class="pause-weapons">${Object.entries(
     game.weapons,
   )
     .map(
@@ -465,12 +635,23 @@ function endScreen() {
     tone(game.state === 'won' ? 600 : 100, 0.4);
   }
   const won = game.state === 'won';
-  return `<div class="end-page"><div class="end-icon">${won ? '✦' : '☢'}</div>${heading(won ? 'EXTRACTION CONFIRMED' : 'OPERATOR SIGNAL LOST', won ? 'ANOTHER<br><em>SUNRISE.</em>' : 'THE ZONE<br><em>REMEMBERS.</em>', won ? 'You brought yourself home. That’s enough for today.' : 'Every run leaves something behind. Make it count.')}<div class="record-stats"><div><strong>${formatTime(game.time)}</strong><span>SURVIVED</span></div><div><strong>${game.kills}</strong><span>INFECTED</span></div><div><strong>${game.bossKills}</strong><span>TITANS</span></div><div><strong>${game.level}</strong><span>LEVEL</span></div></div><div class="salvage-earned"><span>SALVAGE RECOVERED</span><strong>+${result?.earned || 0} ◈</strong></div>${result?.unlocked.length ? `<div class="unlocked">${result.unlocked.map((a) => `<span>✦ ${a.name} <b>+${a.reward} ◈</b></span>`).join('')}</div>` : ''}<div class="end-actions">${action('ONE MORE RUN ↗', 'start')}${action('RETURN TO BUNKER', 'home', 'secondary')}</div></div>`;
+  const completed = result?.chapterCompleted;
+  if (completed)
+    chapterId =
+      CHAPTERS.find((c) => !profile.chapters.includes(c.id))?.id ||
+      completed.id;
+  return `<div class="end-page"><div class="end-icon">${won ? '✦' : '☢'}</div>${heading(won ? 'EXTRACTION CONFIRMED' : 'OPERATOR SIGNAL LOST', won ? 'ANOTHER<br><em>SUNRISE.</em>' : 'THE ZONE<br><em>REMEMBERS.</em>', won ? 'You brought yourself home. That’s enough for today.' : 'Every run leaves something behind. Make it count.')}<div class="record-stats"><div><strong>${formatTime(game.time)}</strong><span>SURVIVED</span></div><div><strong>${game.kills}</strong><span>INFECTED</span></div><div><strong>${game.bossKills}</strong><span>TITANS</span></div><div><strong>${game.level}</strong><span>LEVEL</span></div></div><div class="salvage-earned"><span>SALVAGE RECOVERED</span><strong>+${result?.earned || 0} ◈</strong></div>${result?.unlocked.length ? `<div class="unlocked">${result.unlocked.map((a) => `<span>✦ ${a.name} <b>+${a.reward} ◈</b></span>`).join('')}</div>` : ''}${completed ? `<article class="chapter-debrief"><div class="eyebrow">CHAPTER COMPLETE · +${completed.reward} SALVAGE</div><h2>${completed.title}</h2><p>${completed.debrief}</p>${profile.chapters.length === CHAPTERS.length ? '<strong>CAMPAIGN COMPLETE · THANK YOU FOR PLAYING</strong>' : ''}</article>` : ''}<div class="run-summary"><span>${game.eventsCompleted} EVENTS</span><span>${game.eliteKills} ELITES</span><span>${Math.round(game.damageDealt).toLocaleString()} DAMAGE</span></div><div class="end-actions">${action(completed ? 'CONTINUE STORY ↗' : 'ONE MORE RUN ↗', 'start')}${action('RETURN TO BUNKER', 'home', 'secondary')}</div></div>`;
 }
 function renderUI() {
   const playing = game.state === 'playing',
     inRun = screen === 'run';
+  document.body.classList.toggle('left-handed', profile.settings.leftHanded);
+  sound.setActive(playing);
   $('hud').hidden = !playing;
+  $('overlay').classList.toggle(
+    'home-overlay',
+    screen === 'home' && game.state === 'ready',
+  );
   $('overlay').hidden = playing;
   $('update-banner').hidden = !waitingWorker || game.state !== 'ready';
   const stamp = `${screen}:${game.state}:${game.level}:${game.pendingLevels}:${game.rerolls}`;
@@ -479,24 +660,28 @@ function renderUI() {
     const html =
       screen === 'settings'
         ? settingsScreen()
-        : screen === 'confirm'
-          ? `<div class="pause-page">${heading('RETURN TO BUNKER', 'END THIS RUN?', 'Your collected salvage will be recovered. This operation cannot be resumed.')}<div class="pause-actions">${action('KEEP FIGHTING', 'cancel-abandon')}${action('END OPERATION', 'confirm-abandon', 'secondary')}</div></div>`
-          : !inRun
-            ? (
-                {
-                  home: homeScreen,
-                  workshop: workshopScreen,
-                  records: recordsScreen,
-                  guide: guideScreen,
-                }[screen] || homeScreen
-              )()
-            : game.state === 'upgrade'
-              ? upgradeScreen()
-              : game.state === 'paused'
-                ? pauseScreen()
-                : ['dead', 'won'].includes(game.state)
-                  ? endScreen()
-                  : homeScreen();
+        : screen === 'import-confirm'
+          ? `<div class="pause-page">${heading('RESTORE BUNKER', 'REPLACE THIS SAVE?', 'Your current progression will be replaced by the selected backup. Export your current save first if you want to keep it.')}<div class="pause-actions">${action('CANCEL', 'cancel-import')}${action('RESTORE BACKUP', 'accept-import', 'secondary')}</div></div>`
+          : screen === 'confirm'
+            ? `<div class="pause-page">${heading('RETURN TO BUNKER', 'END THIS RUN?', 'Your collected salvage will be recovered. This operation cannot be resumed.')}<div class="pause-actions">${action('KEEP FIGHTING', 'cancel-abandon')}${action('END OPERATION', 'confirm-abandon', 'secondary')}</div></div>`
+            : !inRun
+              ? (
+                  {
+                    home: homeScreen,
+                    workshop: workshopScreen,
+                    records: recordsScreen,
+                    guide: guideScreen,
+                    campaign: campaignScreen,
+                    codex: codexScreen,
+                  }[screen] || homeScreen
+                )()
+              : game.state === 'upgrade'
+                ? upgradeScreen()
+                : game.state === 'paused'
+                  ? pauseScreen()
+                  : ['dead', 'won'].includes(game.state)
+                    ? endScreen()
+                    : homeScreen();
     $('overlay').innerHTML = html;
     $('overlay').scrollTop = 0;
   }
@@ -512,9 +697,43 @@ function renderUI() {
   $('phase').textContent =
     game.mode === 'endless'
       ? 'NO EXTRACTION'
-      : game.extraction
-        ? 'REACH THE BEACON'
-        : `EXTRACTION IN ${formatTime(Math.ceil(Math.max(0, DURATION - game.time)))}`;
+      : game.chapter && game.time >= game.extractionAt && !missionReady(game)
+        ? 'COMPLETE MISSION OBJECTIVES'
+        : game.extraction
+          ? 'REACH THE BEACON'
+          : `EXTRACTION IN ${formatTime(Math.ceil(Math.max(0, game.extractionAt - game.time)))}`;
+  const mission = missionGoals(game);
+  $('mission-hud').hidden = !mission.length;
+  $('mission-hud').textContent = mission
+    .map(
+      (goal) =>
+        `${goal.progress >= goal.target ? '✓' : '◇'} ${goal.label} ${Math.min(goal.progress, goal.target)}/${goal.target}`,
+    )
+    .join(' · ');
+  const event = game.fieldEvent;
+  $('field-objective').hidden = !event;
+  if (event) {
+    const spec = FIELD_EVENTS[event.kind];
+    $('objective-name').textContent = spec.name;
+    $('objective-detail').textContent =
+      `${Math.ceil(Math.max(0, event.expires - game.time))}s · ${Math.round(distance(p, event))}m`;
+    $('objective-instruction').textContent = event.guards.some((id) =>
+      game.enemies.some((e) => e.id === id && e.hp > 0),
+    )
+      ? 'CLEAR THE ELITE GUARDS'
+      : distance(p, event) < 65
+        ? 'HOLD HERE TO COMPLETE'
+        : 'ENTER THE MARKED CIRCLE';
+    $('objective-progress').style.width =
+      `${Math.min(100, (event.progress / spec.duration) * 100)}%`;
+  }
+  $('buff-status').textContent =
+    game.buffs.overdrive > 0
+      ? `ϟ OVERDRIVE ${Math.ceil(game.buffs.overdrive)}s`
+      : p.invulnerable > 1
+        ? `⬡ SHIELD ${Math.ceil(p.invulnerable)}s`
+        : '';
+  $('overtime').hidden = !game.extraction || game.overtime || !!game.daily;
   $('xp').style.width = `${(game.xp / game.xpNeeded) * 100}%`;
   const boss = game.enemies.find((e) => e.type === 'boss');
   $('boss-hud').hidden = !boss;
@@ -558,7 +777,8 @@ function renderUI() {
 }
 let previousHp = game.player.hp,
   previousState = game.state,
-  previousKills = 0;
+  previousKills = 0,
+  previousShots = 0;
 function frame(timestamp) {
   const dt = last ? Math.min(0.05, (timestamp - last) / 1000) : 0;
   last = timestamp;
@@ -568,6 +788,15 @@ function frame(timestamp) {
     haptic(25);
     tone(65, 0.12);
   }
+  if (game.shotsFired > previousShots)
+    sound.shot(
+      game.weapons.scatter
+        ? 'scatter'
+        : game.weapons.drone
+          ? 'drone'
+          : 'carbine',
+    );
+  previousShots = game.shotsFired;
   if (game.kills > previousKills) tone(110, 0.045, 0.012);
   checkpointClock += dt;
   if (

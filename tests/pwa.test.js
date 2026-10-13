@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import vm from 'node:vm';
 import config from '../vite.config.js';
+import { artUrl } from '../src/art.js';
 const scope = 'https://short-matthew-f.github.io/nuclear-survivors/';
 function worker() {
   let emitted;
@@ -121,6 +122,8 @@ test('offline worker precaches under the GitHub Pages project scope', async () =
   assert.ok(active.has(scope + 'index.html'));
   assert.ok(active.has(scope + 'assets/game.js'));
   assert.ok(active.has(scope + 'manifest.webmanifest'));
+  for (const asset of ['key-art', 'characters', 'terrain', 'props'])
+    assert.ok(active.has(scope + `art/${asset}.png`));
   assert.ok([...active.keys()].every((url) => url.startsWith(scope)));
   assert.equal(w.skipCount(), 0);
 });
@@ -217,4 +220,22 @@ test('an older page can fetch its previous build assets during an update', async
     },
   });
   assert.equal((await response).body, 'previous asset');
+});
+
+test('artwork URLs are absolute under the Pages scope even when consumed from a nested CSS bundle', () => {
+  for (const file of [
+    'key-art.png',
+    'characters.png',
+    'terrain.png',
+    'props.png',
+  ]) {
+    const url = artUrl(file, './', scope);
+    assert.equal(url, scope + 'art/' + file);
+    assert.equal(new URL(url, scope + 'assets/style.css').href, url);
+    assert.ok(existsSync(new URL('../assets/art/' + file, import.meta.url)));
+  }
+  assert.equal(
+    artUrl('characters.png', '/', 'http://localhost:5174/'),
+    'http://localhost:5174/art/characters.png',
+  );
 });

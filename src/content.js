@@ -107,6 +107,182 @@ export const WEAPONS = {
     description: 'Leave explosive charges in your wake.',
   },
 };
+Object.assign(WEAPONS, {
+  scatter: {
+    name: 'Cinder shotgun',
+    icon: '⋔',
+    color: '#ffb384',
+    description: 'A close-range cone of heavy piercing pellets.',
+  },
+  drone: {
+    name: 'Watchdog',
+    icon: '✧',
+    color: '#a6c9ff',
+    description: 'Autonomous escorts fire at nearby threats.',
+  },
+});
+export const EVOLUTIONS = {
+  carbine: { mutation: 'pierce', name: 'Railstorm' },
+  arc: { mutation: 'crit', name: 'Thunder God' },
+  orbit: { mutation: 'armor', name: 'Death Halo' },
+  pulse: { mutation: 'area', name: 'Supernova' },
+  mine: { mutation: 'damage', name: 'Hellfire' },
+  scatter: { mutation: 'multishot', name: 'Extinction' },
+  drone: { mutation: 'rate', name: 'Wolfpack' },
+};
+export const DIFFICULTIES = [
+  {
+    id: 'scavenger',
+    name: 'Scavenger',
+    scale: 0.7,
+    reward: 0.8,
+    description:
+      'A gentler first expedition. Enemies have 30% less health and damage.',
+  },
+  {
+    id: 'survivor',
+    name: 'Survivor',
+    scale: 1,
+    reward: 1,
+    description: 'The intended field experience. Stay alert. Keep moving.',
+  },
+  {
+    id: 'veteran',
+    name: 'Veteran',
+    scale: 1.4,
+    reward: 1.5,
+    description:
+      '40% tougher enemies. 50% more salvage. Unlocks after extraction.',
+  },
+];
+export const CHAPTERS = [
+  {
+    id: 'signal',
+    goals: [{ kind: 'rescue', target: 1, label: 'Rescue a survivor' }],
+    title: 'A voice in the static',
+    zone: 'forest',
+    difficulty: 'scavenger',
+    reward: 100,
+    briefing:
+      'Bunker Six has heard a distress call from the Red Forest. Follow the signal. Extract alive and bring back proof that we are not alone.',
+    debrief:
+      'The signal was real. A survivor handed you a waterlogged map. It points toward the drowned settlements.',
+  },
+  {
+    id: 'water',
+    goals: [{ kind: 'relay', target: 1, label: 'Restore a relay' }],
+    title: 'What the water kept',
+    zone: 'marsh',
+    difficulty: 'survivor',
+    reward: 150,
+    briefing:
+      'The pumping station is gone, but its archive remains. Reach The Drowned and recover enough data to trace the contamination. Get home alive.',
+    debrief:
+      'Every sample bears the same reactor signature. This was no accident. The origin is still active.',
+  },
+  {
+    id: 'heart',
+    goals: [{ kind: 'boss', target: 3, label: 'Defeat three titans' }],
+    title: 'A heart of uranium',
+    zone: 'industrial',
+    difficulty: 'survivor',
+    reward: 200,
+    briefing:
+      'Go to Sector Zero. The reactor is feeding the infection. Survive its guardians and extract with the containment codes.',
+    debrief:
+      'Containment is holding. For the first time in years, the bunker lights stay on through the night. But the forest has changed.',
+  },
+  {
+    id: 'return',
+    goals: [{ kind: 'rescue', target: 2, label: 'Rescue two survivors' }],
+    title: 'The forest answers',
+    zone: 'forest',
+    difficulty: 'veteran',
+    reward: 250,
+    briefing:
+      'A stronger strain is spreading along the old supply road. Take what you have learned back into the Red Forest. This time it knows your name.',
+    debrief:
+      'The northern route is clear. Families leave the bunker for the first time. One final transmission arrives from Sector Zero.',
+  },
+  {
+    id: 'sunrise',
+    goals: [
+      { kind: 'boss', target: 3, label: 'Defeat three titans' },
+      { kind: 'relay', target: 1, label: 'Restore the grid relay' },
+    ],
+    title: 'One more sunrise',
+    zone: 'industrial',
+    difficulty: 'veteran',
+    reward: 400,
+    briefing:
+      'The emergency grid is failing. One last journey to the reactor will secure power for every settlement. Make it home. They are waiting for you.',
+    debrief:
+      'You return at dawn. The gates open. Beyond them, a child is planting something in the soil. The world did not end. It is beginning again.',
+  },
+];
+export const PERKS = [
+  {
+    id: 'none',
+    name: 'Travel light',
+    icon: '○',
+    requirement: null,
+    description: 'No field kit. Trust your instincts.',
+  },
+  {
+    id: 'magnet',
+    name: 'Survey kit',
+    icon: '◎',
+    requirement: 'hundred',
+    description: '+60 pickup radius. Start with an extra reroll.',
+  },
+  {
+    id: 'medic',
+    name: 'Trauma kit',
+    icon: '+',
+    requirement: 'rescue',
+    description: '+30 starting health. Medkits heal 60.',
+  },
+  {
+    id: 'phoenix',
+    name: 'Last light',
+    icon: '✦',
+    requirement: 'extract',
+    description: 'Once per run, a lethal hit restores half your health.',
+  },
+  {
+    id: 'hunter',
+    name: 'Titan rounds',
+    icon: '⌖',
+    requirement: 'boss',
+    description: '+25% damage against titans and elites.',
+  },
+];
+export const FIELD_EVENTS = {
+  rescue: {
+    name: 'LOST SURVIVOR',
+    icon: '+',
+    color: '#91e8d2',
+    instruction: 'Hold nearby to escort the survivor',
+    duration: 12,
+    reward: 35,
+  },
+  relay: {
+    name: 'DORMANT RELAY',
+    icon: 'ϟ',
+    color: '#98c9ff',
+    instruction: 'Hold nearby to restore the relay',
+    duration: 10,
+    reward: 30,
+  },
+  convoy: {
+    name: 'GUARDED CONVOY',
+    icon: '◈',
+    color: '#f5bc80',
+    instruction: 'Defeat its guards, then recover the cargo',
+    duration: 6,
+    reward: 50,
+  },
+};
 export const UPGRADES = [
   {
     id: 'damage',
@@ -151,10 +327,10 @@ export const UPGRADES = [
   {
     id: 'multishot',
     name: 'Split chamber',
-    description: 'Carbine fires an extra projectile.',
+    description:
+      'Carbine fires an extra projectile. Required for the shotgun evolution.',
     icon: '⋔',
     cap: 4,
-    weapon: 'carbine',
     rarity: 'WEAPON MOD',
   },
   ...Object.entries(WEAPONS).map(([id, w]) => ({
@@ -379,3 +555,70 @@ export const ACHIEVEMENTS = [
     test: (g) => g.state === 'won',
   },
 ];
+
+ACHIEVEMENTS.push(
+  {
+    id: 'rescue',
+    name: 'Nobody left behind',
+    description: 'Complete a survivor rescue.',
+    reward: 80,
+    test: (g) => (g.rescues || 0) >= 1,
+  },
+  {
+    id: 'events',
+    name: 'A little hope',
+    description: 'Complete three field events in one run.',
+    reward: 100,
+    test: (g) => (g.eventsCompleted || 0) >= 3,
+  },
+  {
+    id: 'elite',
+    name: 'Apex predator',
+    description: 'Defeat five elites in one run.',
+    reward: 80,
+    test: (g) => (g.eliteKills || 0) >= 5,
+  },
+  {
+    id: 'overtime',
+    name: 'The long way home',
+    description: 'Extract after committing to overtime.',
+    reward: 150,
+    test: (g) => g.state === 'won' && g.overtime === true,
+  },
+  {
+    id: 'veteran',
+    name: 'Against the odds',
+    description: 'Extract on Veteran difficulty.',
+    reward: 150,
+    test: (g) => g.state === 'won' && g.difficulty?.id === 'veteran',
+  },
+  {
+    id: 'thousand',
+    name: 'Exclusion zone',
+    description: 'Defeat 1,000 infected in one operation.',
+    reward: 200,
+    test: (g) => g.kills >= 1000,
+  },
+  {
+    id: 'evolvedPair',
+    name: 'Chain reaction',
+    description: 'Carry two evolved weapons.',
+    reward: 120,
+    test: (g) => Object.values(g.weapons).filter((w) => w.evolved).length >= 2,
+  },
+);
+export const LORE = {
+  walker:
+    'Once workers, neighbors, friends. The infection leaves only the instinct to follow warmth.',
+  runner:
+    'Feral strays adapted before we did. Fast, fragile, and never alone for long.',
+  brute:
+    'Concrete dust has fused with the skin. Keep your distance and bring sustained fire.',
+  spitter:
+    'Carries a living colony on its back. It retreats to launch spores from a distance.',
+  charger:
+    'The red strain trades judgment for speed. Watch its warning line and dash sideways.',
+  splitter:
+    'A nest pretending to be one creature. Its death is the beginning of the fight.',
+  boss: 'Titans are the zone defending itself. Their attacks intensify as their health falls.',
+};

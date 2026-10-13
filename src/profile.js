@@ -1,4 +1,13 @@
-import { RESEARCH, OPERATORS, ZONES, ACHIEVEMENTS } from './content.js';
+import {
+  RESEARCH,
+  OPERATORS,
+  ZONES,
+  ACHIEVEMENTS,
+  CHAPTERS,
+  PERKS,
+  ENEMIES,
+} from './content.js';
+import { missionReady } from './expedition.js';
 export const SAVE_KEY = 'nuclear-survivors-v2';
 export function freshProfile() {
   return {
@@ -13,7 +22,21 @@ export function freshProfile() {
     kills: 0,
     best: 0,
     history: [],
-    settings: { sound: false, shake: true, haptics: true, quality: 'high' },
+    chapters: [],
+    enemyKills: {},
+    dailyScores: [],
+    events: 0,
+    perk: 'none',
+    settings: {
+      sound: false,
+      music: false,
+      shake: true,
+      haptics: true,
+      numbers: true,
+      radar: true,
+      leftHanded: false,
+      quality: 'high',
+    },
   };
 }
 const nonnegative = (value) =>
@@ -23,7 +46,7 @@ export function parseProfile(raw) {
     const data = JSON.parse(raw),
       p = freshProfile();
     if (!data || data.version !== 2) return p;
-    for (const key of ['scrap', 'runs', 'wins', 'kills', 'best'])
+    for (const key of ['scrap', 'runs', 'wins', 'kills', 'best', 'events'])
       p[key] = nonnegative(data[key]);
     for (const r of RESEARCH)
       p.research[r.id] = Math.min(r.cap, nonnegative(data.research?.[r.id]));
@@ -47,14 +70,56 @@ export function parseProfile(raw) {
       ? data.achievements.filter((id) => ACHIEVEMENTS.some((a) => a.id === id))
       : [];
     p.history = Array.isArray(data.history)
-      ? data.history.slice(0, 8).map((r) => ({
-          time: nonnegative(r.time),
-          kills: nonnegative(r.kills),
-          won: r.won === true,
-          zone: ZONES.some((z) => z.id === r.zone) ? r.zone : 'forest',
-        }))
+      ? data.history
+          .filter((r) => r && typeof r === 'object')
+          .slice(0, 8)
+          .map((r) => ({
+            time: nonnegative(r.time),
+            kills: nonnegative(r.kills),
+            won: r.won === true,
+            zone: ZONES.some((z) => z.id === r.zone) ? r.zone : 'forest',
+          }))
       : [];
-    for (const k of ['sound', 'shake', 'haptics'])
+    p.chapters = Array.isArray(data.chapters)
+      ? [
+          ...new Set(
+            data.chapters.filter((id) => CHAPTERS.some((c) => c.id === id)),
+          ),
+        ]
+      : [];
+    for (const id of Object.keys(ENEMIES))
+      p.enemyKills[id] = nonnegative(data.enemyKills?.[id]);
+    p.perk = PERKS.some(
+      (k) =>
+        k.id === data.perk &&
+        (!k.requirement || p.achievements.includes(k.requirement)),
+    )
+      ? data.perk
+      : 'none';
+    p.dailyScores = Array.isArray(data.dailyScores)
+      ? data.dailyScores
+          .filter(
+            (d) =>
+              d &&
+              typeof d.date === 'string' &&
+              /^\d{4}-\d{2}-\d{2}$/.test(d.date),
+          )
+          .slice(0, 14)
+          .map((d) => ({
+            date: d.date,
+            score: nonnegative(d.score),
+            won: d.won === true,
+          }))
+      : [];
+    for (const k of [
+      'sound',
+      'music',
+      'shake',
+      'haptics',
+      'numbers',
+      'radar',
+      'leftHanded',
+    ])
       if (typeof data.settings?.[k] === 'boolean')
         p.settings[k] = data.settings[k];
     p.settings.quality = data.settings?.quality === 'low' ? 'low' : 'high';
@@ -88,16 +153,60 @@ export function purchase(profile, kind, id) {
 export function settleRun(profile, game) {
   if (game.settled || !['dead', 'won'].includes(game.state)) return null;
   game.settled = true;
-  const earned =
-    game.scrap +
-    Math.floor(game.kills / 4) +
-    Math.floor(game.time / 12) +
-    (game.state === 'won' ? 100 : 0);
+  const earned = Math.floor(
+    (game.scrap +
+      Math.floor(game.kills / 4) +
+      Math.floor(game.time / 12) +
+      (game.state === 'won' ? 100 : 0)) *
+      (game.difficulty?.reward || 1) *
+      (game.overtime ? 1.75 : 1),
+  );
   const unlocked = ACHIEVEMENTS.filter(
     (a) => !profile.achievements.includes(a.id) && a.test(game),
   );
   profile.scrap += earned + unlocked.reduce((sum, a) => sum + a.reward, 0);
   profile.achievements.push(...unlocked.map((a) => a.id));
+  const chapter = CHAPTERS.find((c) => c.id === game.chapter);
+  let chapterCompleted = null;
+  if (
+    chapter &&
+    game.state === 'won' &&
+    missionReady(game) &&
+    !profile.chapters.includes(chapter.id) &&
+    CHAPTERS.slice(0, CHAPTERS.indexOf(chapter)).every((c) =>
+      profile.chapters.includes(c.id),
+    )
+  ) {
+    profile.chapters.push(chapter.id);
+    profile.scrap += chapter.reward;
+    const next = CHAPTERS[CHAPTERS.indexOf(chapter) + 1];
+    if (next && !profile.zones.includes(next.zone))
+      profile.zones.push(next.zone);
+    chapterCompleted = chapter;
+  }
+  profile.events += game.eventsCompleted || 0;
+  for (const [id, count] of Object.entries(game.enemyKills || {}))
+    profile.enemyKills[id] = (profile.enemyKills[id] || 0) + count;
+  if (game.daily) {
+    const score = Math.floor(
+      game.kills * 10 +
+        game.time +
+        game.bossKills * 500 +
+        (game.state === 'won' ? 2000 : 0),
+    );
+    const prior = profile.dailyScores.find((d) => d.date === game.daily);
+    if (!prior)
+      profile.dailyScores.unshift({
+        date: game.daily,
+        score,
+        won: game.state === 'won',
+      });
+    else if (score > prior.score) {
+      prior.score = score;
+      prior.won = game.state === 'won';
+    }
+    profile.dailyScores = profile.dailyScores.slice(0, 14);
+  }
   profile.runs++;
   profile.wins += Number(game.state === 'won');
   profile.kills += game.kills;
@@ -109,5 +218,32 @@ export function settleRun(profile, game) {
     zone: game.zone.id,
   });
   profile.history = profile.history.slice(0, 8);
-  return { earned, unlocked };
+  return { earned, unlocked, chapterCompleted };
+}
+
+export function selectPerk(profile, id) {
+  const perk = PERKS.find((p) => p.id === id);
+  if (
+    !perk ||
+    (perk.requirement && !profile.achievements.includes(perk.requirement))
+  )
+    return false;
+  profile.perk = id;
+  return true;
+}
+export function exportProfile(profile) {
+  return JSON.stringify({ format: 'nuclear-survivors-backup', profile });
+}
+export function importProfile(raw) {
+  try {
+    const data = JSON.parse(raw);
+    if (
+      data?.format !== 'nuclear-survivors-backup' ||
+      data.profile?.version !== 2
+    )
+      return null;
+    return parseProfile(JSON.stringify(data.profile));
+  } catch {
+    return null;
+  }
 }

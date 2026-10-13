@@ -1,5 +1,14 @@
 import { createGame, seededRandom } from './game.js';
-import { OPERATORS, ZONES, WEAPONS, UPGRADES, ENEMIES } from './content.js';
+import {
+  OPERATORS,
+  ZONES,
+  WEAPONS,
+  UPGRADES,
+  ENEMIES,
+  DIFFICULTIES,
+  CHAPTERS,
+  PERKS,
+} from './content.js';
 export const CHECKPOINT_KEY = 'nuclear-survivors-operation-v1';
 export function serializeRun(game) {
   if (!['playing', 'paused', 'upgrade'].includes(game.state)) return null;
@@ -47,7 +56,60 @@ export function restoreRun(raw) {
       operator: data.operator.id,
       zone: data.zone.id,
       mode: data.mode,
+      difficulty: data.difficulty?.id,
+      perk: data.perk,
+      chapter: data.chapter,
+      daily: data.daily,
     });
+    // Version-one checkpoints predate expedition fields. Migrate only those optional additions.
+    for (const key of [
+      'difficulty',
+      'perk',
+      'chapter',
+      'daily',
+      'extractionAt',
+      'overtime',
+      'eventsCompleted',
+      'eventCounts',
+      'rescues',
+      'eliteKills',
+      'enemyKills',
+      'fieldEvent',
+      'eventIndex',
+      'nextEvent',
+      'buffs',
+      'revives',
+      'shotsFired',
+      'damageTaken',
+    ])
+      if (!(key in data)) data[key] = baseline[key];
+    if (
+      !DIFFICULTIES.some((d) => d.id === data.difficulty?.id) ||
+      !PERKS.some((p) => p.id === data.perk) ||
+      (data.chapter !== null && !CHAPTERS.some((c) => c.id === data.chapter)) ||
+      typeof data.buffs?.overdrive !== 'number'
+    )
+      return null;
+    for (const record of [data.eventCounts, data.enemyKills]) {
+      if (
+        !record ||
+        Array.isArray(record) ||
+        typeof record !== 'object' ||
+        Object.values(record).some(
+          (value) => !Number.isInteger(value) || value < 0,
+        )
+      )
+        return null;
+    }
+    if (
+      data.fieldEvent &&
+      (!['rescue', 'relay', 'convoy'].includes(data.fieldEvent.kind) ||
+        !Array.isArray(data.fieldEvent.guards) ||
+        !['x', 'y', 'progress', 'expires'].every((k) =>
+          Number.isFinite(data.fieldEvent[k]),
+        ))
+    )
+      return null;
     for (const [key, value] of Object.entries(baseline)) {
       if (key === 'random') continue;
       if (!(key in data)) return null;
@@ -110,6 +172,7 @@ export function restoreRun(raw) {
       random,
       operator: baseline.operator,
       zone: baseline.zone,
+      difficulty: baseline.difficulty,
       settled: false,
     };
     game.choices = data.choices

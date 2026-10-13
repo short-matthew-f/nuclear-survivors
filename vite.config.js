@@ -17,6 +17,10 @@ export default defineConfig({
           'icons/icon-512.png',
           'icons/icon-maskable.png',
           'icons/icon.svg',
+          'art/key-art.png',
+          'art/characters.png',
+          'art/terrain.png',
+          'art/props.png',
           ...Object.keys(bundle).filter((name) => name !== 'index.html'),
         ];
         const hash = createHash('sha256');
@@ -28,6 +32,10 @@ export default defineConfig({
           'icons/icon-512.png',
           'icons/icon-maskable.png',
           'icons/icon.svg',
+          'art/key-art.png',
+          'art/characters.png',
+          'art/terrain.png',
+          'art/props.png',
         ])
           hash.update(
             readFileSync(new URL(`./assets/${file}`, import.meta.url)),

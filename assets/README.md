@@ -1,3 +1,3 @@
 # Public assets
 
-Vite copies this directory to the production build. It contains the app manifest, regular/maskable PNG icons, the SVG icon, and screenshots. The world, characters, weapon effects, and audio are generated in code; no external resources are needed for offline play.
+Vite copies this directory to the production build. It contains the PWA manifest, regular/maskable PNG icons, SVG icon, screenshots, and original generated artwork in `art/`. The world is assembled from local painted atlases with Canvas effects; audio is synthesized in code. No external runtime resources are needed for offline play. See `art/README.md` for atlas layouts and the final image-generation prompts.
