@@ -94,9 +94,8 @@ button span {
 .vitals {
   width: 180px;
   padding: 12px 14px;
-  background: #0c160cd9;
+  background: #0c160c;
   border: 1px solid var(--line);
-  backdrop-filter: blur(8px);
 }
 .vitals-label {
   font: 9px monospace;
