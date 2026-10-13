@@ -2092,3 +2092,122 @@ label {
   background: #697a63;
   color: #f0f4de;
 }
+
+.build-path {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 15px 18px;
+  margin: 22px 0;
+  background: #243e34;
+  border-left: 3px solid #c6e993;
+}
+.build-path strong {
+  display: block;
+  font-size: 13px;
+  color: #eff5d7;
+}
+.build-path small {
+  display: block;
+  font: 9px monospace;
+  line-height: 1.8;
+  color: #c6d8b7;
+  margin-top: 5px;
+}
+.build-path > span {
+  font: 8px monospace;
+  white-space: nowrap;
+  color: #c6d8b7;
+}
+.choice-identity {
+  font: 9px monospace;
+  letter-spacing: 1px;
+  color: #d0ddbd;
+  margin-bottom: 8px;
+}
+.upgrade-effects {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 16px;
+  font: 11px monospace;
+  line-height: 1.8;
+  color: #ecf1d8;
+}
+.upgrade-effects li + li {
+  margin-top: 5px;
+}
+.evolution-choice {
+  background: linear-gradient(145deg, #58623a, #2e4836);
+  border-color: #f3dda0;
+}
+.choice.evolution-choice .choice-top {
+  color: #fff0b1;
+}
+.upgrade-page .choices {
+  margin-top: 20px;
+}
+.upgrade-page .choice h2 {
+  margin-top: 0;
+}
+@media (max-width: 700px) {
+  .upgrade-page h1 {
+    font-size: 36px;
+    line-height: 0.95;
+  }
+  .upgrade-page h1 br {
+    display: none;
+  }
+  .upgrade-page h1 em::before {
+    content: ' ';
+  }
+  .upgrade-page > .lede {
+    font-size: 10px;
+    margin-bottom: 0;
+  }
+  .build-path {
+    margin: 15px 0;
+    padding: 11px 12px;
+    gap: 8px;
+  }
+  .build-path strong {
+    font-size: 11px;
+  }
+  .build-path small {
+    font-size: 8px;
+  }
+  .build-path > span {
+    font-size: 6px;
+  }
+  .upgrade-page .choices {
+    gap: 9px;
+    margin-top: 14px;
+  }
+  .upgrade-page .choice {
+    padding: 13px;
+    gap: 4px 12px;
+  }
+  .choice-identity,
+  .upgrade-effects {
+    grid-column: 2;
+  }
+  .choice-identity {
+    font-size: 8px;
+    margin-bottom: 1px;
+  }
+  .upgrade-effects {
+    font-size: 9px;
+    line-height: 1.5;
+    margin: 3px 0;
+  }
+  .upgrade-effects li + li {
+    margin-top: 2px;
+  }
+  .upgrade-page .choice h2 {
+    font-size: 17px;
+    margin-bottom: 3px;
+  }
+  .upgrade-page .choice-icon {
+    font-size: 34px;
+  }
+}

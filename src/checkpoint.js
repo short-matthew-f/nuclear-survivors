@@ -64,6 +64,7 @@ export function restoreRun(raw) {
     // Version-one checkpoints predate expedition fields. Migrate only those optional additions.
     for (const key of [
       'difficulty',
+      'focusWeapon',
       'perk',
       'chapter',
       'daily',
@@ -90,6 +91,7 @@ export function restoreRun(raw) {
       typeof data.buffs?.overdrive !== 'number'
     )
       return null;
+    if (!Object.hasOwn(WEAPONS, data.focusWeapon)) return null;
     for (const record of [data.eventCounts, data.enemyKills]) {
       if (
         !record ||

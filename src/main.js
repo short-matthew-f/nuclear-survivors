@@ -34,6 +34,7 @@ import {
   exportProfile,
   importProfile,
 } from './profile.js';
+import { upgradePreview, evolutionProgress, WEAPON_LIMIT } from './build.js';
 import { artUrl } from './art.js';
 import { createRenderer } from './render.js';
 import { commitOvertime, missionGoals, missionReady } from './expedition.js';
@@ -427,13 +428,18 @@ $('overlay').addEventListener('click', async (e) => {
   } else if (act === 'upgrade') {
     if (applyUpgrade(game, value)) {
       haptic(12);
-      tone(700, 0.18);
+      tone(
+        Object.values(game.weapons).some((w) => w.evolved) ? 980 : 700,
+        0.28,
+      );
+      checkpoint();
       pointer = null;
       overlayStamp = '';
       renderUI();
     }
   } else if (act === 'reroll') {
     if (reroll(game)) {
+      checkpoint();
       overlayStamp = '';
       renderUI();
     }
@@ -469,7 +475,7 @@ $('overlay').addEventListener('click', async (e) => {
 function homeScreen() {
   const o = OPERATORS.find((o) => o.id === operator),
     z = ZONES.find((z) => z.id === zone);
-  return `<div class="home"><div class="home-main"><div class="brand-mark">☢ <small>FIELD BUILD 1.0</small></div>${heading('A SURVIVAL ROGUELITE', 'NUCLEAR<br><em>SURVIVORS.</em>', 'The world ended. Your shift didn’t.')}<div class="home-actions">${savedRun ? action(`RESUME ${formatTime(savedRun.time)} OPERATION <span>↗</span>`, 'restore') + action('NEW OPERATION', 'start', 'secondary') : action('ENTER THE ZONE <span>↗</span>', 'start')}${action('THE BUNKER <span>◈</span>', 'workshop', 'secondary')}</div><div class="home-links">${action('FIELD GUIDE', 'guide', 'text-button')}${action('CODEX', 'codex', 'text-button')}${action('RUN ARCHIVE', 'records', 'text-button')}${action('SETTINGS', 'settings', 'text-button')}</div><div class="install-row">${action('⊕ INSTALL GAME', 'install', 'text-button')}<span>TOUCH TO MOVE · AUTO COMBAT</span></div></div><div class="deployment-panel"><div class="panel-heading"><span>PREPARE TO DEPLOY</span><span class="currency">◈ ${profile.scrap}</span></div><label>01 / OPERATOR</label><div class="operator-options">${OPERATORS.map((item) => `<button class="operator-option ${operator === item.id ? 'selected' : ''}" data-action="operator" data-value="${item.id}" aria-pressed="${operator === item.id}"><span class="operator-art art-${item.id}" aria-hidden="true"></span><strong>${item.name}</strong><small>${profile.operators.includes(item.id) ? item.role : `◈ ${item.cost} TO RECRUIT`}</small></button>`).join('')}</div><p class="selection-description">${o.description}</p><label>02 / DROP ZONE</label><div class="zone-options">${ZONES.map((item) => `<button class="zone-option ${zone === item.id ? 'selected' : ''}" data-action="zone" data-value="${item.id}" aria-pressed="${zone === item.id}"><span class="zone-swatch ${item.id}"></span><span><strong>${item.name}</strong><small>${profile.zones.includes(item.id) ? item.label : `LOCKED · ◈ ${item.cost}`}</small></span><b>${zone === item.id ? '↗' : '+'}</b></button>`).join('')}</div><label>03 / OPERATION</label><div class="mode-options">${[
+  return `<div class="home"><div class="home-main"><div class="brand-mark">☢ <small>FIELD BUILD 1.1</small></div>${heading('A SURVIVAL ROGUELITE', 'NUCLEAR<br><em>SURVIVORS.</em>', 'The world ended. Your shift didn’t.')}<div class="home-actions">${savedRun ? action(`RESUME ${formatTime(savedRun.time)} OPERATION <span>↗</span>`, 'restore') + action('NEW OPERATION', 'start', 'secondary') : action('ENTER THE ZONE <span>↗</span>', 'start')}${action('THE BUNKER <span>◈</span>', 'workshop', 'secondary')}</div><div class="home-links">${action('FIELD GUIDE', 'guide', 'text-button')}${action('CODEX', 'codex', 'text-button')}${action('RUN ARCHIVE', 'records', 'text-button')}${action('SETTINGS', 'settings', 'text-button')}</div><div class="install-row">${action('⊕ INSTALL GAME', 'install', 'text-button')}<span>TOUCH TO MOVE · AUTO COMBAT</span></div></div><div class="deployment-panel"><div class="panel-heading"><span>PREPARE TO DEPLOY</span><span class="currency">◈ ${profile.scrap}</span></div><label>01 / OPERATOR</label><div class="operator-options">${OPERATORS.map((item) => `<button class="operator-option ${operator === item.id ? 'selected' : ''}" data-action="operator" data-value="${item.id}" aria-pressed="${operator === item.id}"><span class="operator-art art-${item.id}" aria-hidden="true"></span><strong>${item.name}</strong><small>${profile.operators.includes(item.id) ? item.role : `◈ ${item.cost} TO RECRUIT`}</small></button>`).join('')}</div><p class="selection-description">${o.description}</p><label>02 / DROP ZONE</label><div class="zone-options">${ZONES.map((item) => `<button class="zone-option ${zone === item.id ? 'selected' : ''}" data-action="zone" data-value="${item.id}" aria-pressed="${zone === item.id}"><span class="zone-swatch ${item.id}"></span><span><strong>${item.name}</strong><small>${profile.zones.includes(item.id) ? item.label : `LOCKED · ◈ ${item.cost}`}</small></span><b>${zone === item.id ? '↗' : '+'}</b></button>`).join('')}</div><label>03 / OPERATION</label><div class="mode-options">${[
     ['campaign', 'STORY'],
     ['extraction', 'EXTRACT'],
     ['endless', 'ENDLESS'],
@@ -485,7 +491,7 @@ function homeScreen() {
     )
     .join(
       '',
-    )}</div><p class="selection-description">${mode === 'campaign' ? `Five chapters. A world worth saving. ${profile.chapters.length} / ${CHAPTERS.length} complete.` : mode === 'daily' ? 'A shared daily seed. Nomad. Red Forest. No bunker bonuses. Local scores only.' : mode === 'endless' ? 'No rescue is coming. Survive as long as you can.' : 'Eight minutes. Three titans. Hold the extraction beacon to get home.'}</p>${mode !== 'daily' && mode !== 'campaign' ? `<label>04 / THREAT LEVEL</label><div class="difficulty-options">${DIFFICULTIES.map((d) => action(d.name, 'difficulty', difficulty === d.id ? 'selected' : '', `data-value="${d.id}" ${d.id === 'veteran' && !profile.wins ? 'disabled' : ''}`)).join('')}</div><p class="selection-description">${DIFFICULTIES.find((d) => d.id === difficulty).description}</p>` : ''}<div class="sector-note"><i></i>${z.subtitle}<span>BUILD 1.0</span></div></div></div>`;
+    )}</div><p class="selection-description">${mode === 'campaign' ? `Five chapters. A world worth saving. ${profile.chapters.length} / ${CHAPTERS.length} complete.` : mode === 'daily' ? 'A shared daily seed. Nomad. Red Forest. No bunker bonuses. Local scores only.' : mode === 'endless' ? 'No rescue is coming. Survive as long as you can.' : 'Eight minutes. Three titans. Hold the extraction beacon to get home.'}</p>${mode !== 'daily' && mode !== 'campaign' ? `<label>04 / THREAT LEVEL</label><div class="difficulty-options">${DIFFICULTIES.map((d) => action(d.name, 'difficulty', difficulty === d.id ? 'selected' : '', `data-value="${d.id}" ${d.id === 'veteran' && !profile.wins ? 'disabled' : ''}`)).join('')}</div><p class="selection-description">${DIFFICULTIES.find((d) => d.id === difficulty).description}</p>` : ''}<div class="sector-note"><i></i>${z.subtitle}<span>BUILD 1.1</span></div></div></div>`;
 }
 function campaignScreen() {
   const chapter = CHAPTERS.find((c) => c.id === chapterId) || CHAPTERS[0];
@@ -545,7 +551,7 @@ function recordsScreen() {
   return `<div class="menu-page">${navigation()}${heading('EVERY RUN LEAVES A MARK', 'FIELD RECORDS.')}<div class="record-stats"><div><strong>${profile.runs}</strong><span>DEPLOYMENTS</span></div><div><strong>${profile.wins}</strong><span>EXTRACTIONS</span></div><div><strong>${profile.kills}</strong><span>INFECTED DOWN</span></div><div><strong>${formatTime(profile.best)}</strong><span>LONGEST RUN</span></div></div><div class="section-label">COMMENDATIONS <span>${profile.achievements.length} / ${ACHIEVEMENTS.length}</span></div><div class="achievement-grid">${ACHIEVEMENTS.map((a) => `<div class="achievement ${profile.achievements.includes(a.id) ? 'earned' : ''}"><span>${profile.achievements.includes(a.id) ? '✦' : '◇'}</span><div><strong>${a.name}</strong><p>${a.description}</p></div><small>◈ ${a.reward}</small></div>`).join('')}</div>${profile.dailyScores.length ? `<div class="section-label">DAILY CHALLENGE <span>PERSONAL BESTS · UTC</span></div><div class="history">${profile.dailyScores.map((d) => `<div><span>${d.date}</span><strong>${d.score.toLocaleString()} PTS</strong><span>${d.won ? 'EXTRACTED' : 'SIGNAL LOST'}</span></div>`).join('')}</div>` : ''}<div class="section-label">RECENT OPERATIONS</div>${profile.history.length ? `<div class="history">${profile.history.map((r) => `<div><span class="${r.won ? 'success' : ''}">${r.won ? 'EXTRACTED' : 'SIGNAL LOST'}</span><strong>${ZONES.find((z) => z.id === r.zone).name}</strong><span>${r.kills} KILLS</span><b>${formatTime(r.time)}</b></div>`).join('')}</div>` : '<p class="subtle">No field records yet. The zone is waiting.</p>'}</div>`;
 }
 function guideScreen() {
-  return `<div class="menu-page">${navigation()}${heading('READ THIS. STAY ALIVE.', 'FIELD MANUAL.')}<div class="guide-grid"><article><span>01</span><h2>Keep your thumb moving.</h2><p>Touch and drag anywhere on the field. A floating stick follows your thumb. Drag a little to walk, further to run. Weapons aim and fire automatically. A mouse drag works too.</p></article><article><span>02</span><h2>Use both hands.</h2><p>Keep moving with one thumb. Tap Dash with the other to slip through danger. Shockwave clears nearby enemies and incoming projectiles. Both recharge automatically.</p></article><article><span>03</span><h2>Become the hazard.</h2><p>Green cores grant experience. Each level offers three mutations. Build an arsenal or specialize. Two rerolls per run. Supply caches restore health, award salvage, and draw in nearby cores.</p></article><article><span>04</span><h2>Get home.</h2><p>Titans arrive at 1:30, 3:30, and 6:30. Dodge their projectile rings and radiation warnings. At 8:00, follow the cyan marker. Stay inside the beacon for eight seconds to extract. Endless mode has no extraction. Once the beacon opens, you can choose Overtime: four more minutes for 75% bonus salvage, a full heal, and more titans.</p></article></div><div class="section-label">WEAPON EVOLUTIONS <span>LEVEL 5 + REQUIRED MUTATION</span></div><div class="evolution-list">${Object.entries(
+  return `<div class="menu-page">${navigation()}${heading('READ THIS. STAY ALIVE.', 'FIELD MANUAL.')}<div class="guide-grid"><article><span>01</span><h2>Keep your thumb moving.</h2><p>Touch and drag anywhere on the field. A floating stick follows your thumb. Drag a little to walk, further to run. Weapons aim and fire automatically. A mouse drag works too.</p></article><article><span>02</span><h2>Use both hands.</h2><p>Keep moving with one thumb. Tap Dash with the other to slip through danger. Shockwave clears nearby enemies and incoming projectiles. Both recharge automatically.</p></article><article><span>03</span><h2>Become the hazard.</h2><p>Green cores grant experience. Each level offers three mutations. Each level offers a weapon specialization, a mutation, and room for a new weapon. Carry up to four weapons. Your last chosen weapon stays in focus. The build path shows its evolution key. Two rerolls per run. Supply caches restore health, award salvage, and draw in nearby cores.</p></article><article><span>04</span><h2>Get home.</h2><p>Titans arrive at 1:30, 3:30, and 6:30. Dodge their projectile rings and radiation warnings. At 8:00, follow the cyan marker. Stay inside the beacon for eight seconds to extract. Endless mode has no extraction. Once the beacon opens, you can choose Overtime: four more minutes for 75% bonus salvage, a full heal, and more titans.</p></article></div><div class="section-label">WEAPON EVOLUTIONS <span>LEVEL 5 + REQUIRED MUTATION</span></div><div class="evolution-list">${Object.entries(
     EVOLUTIONS,
   )
     .map(([id, e]) => [
@@ -617,15 +623,19 @@ function pauseScreen() {
     )}</div><div class="section-label">ACTIVE BOUNTIES</div><div class="pause-contracts"><span>${Math.min(100, game.kills)} / 100 INFECTED</span><span>${Math.min(3, game.crates)} / 3 CACHES</span><span>${Math.min(1, game.bossKills)} / 1 TITAN</span></div></div>`;
 }
 function upgradeScreen() {
-  return `<div class="upgrade-page">${heading(`LEVEL ${game.level} / ADAPTATION AVAILABLE`, 'EVOLVE OR DIE.', 'Take what the fallout gives you.')}<div class="choices">${game.choices
+  const focus = game.weapons[game.focusWeapon]
+    ? game.focusWeapon
+    : Object.keys(game.weapons)[0];
+  const evolution = evolutionProgress(game, focus);
+  return `<div class="upgrade-page">${heading(`LEVEL ${game.level} / CHOOSE YOUR BUILD`, 'MAKE IT<br><em>COUNT.</em>', 'Specialize your weapon. Add a new tool. Find your evolution.')}<div class="build-path"><div><strong>${WEAPONS[focus].name} → ${evolution.name}</strong><small>${evolution.evolved ? 'EVOLVED' : `WEAPON ${evolution.rank}/5 · ${evolution.keyReady ? '✓' : '◇'} ${evolution.mutation}`}</small></div><span>${Object.keys(game.weapons).length}/${Math.max(WEAPON_LIMIT, Object.keys(game.weapons).length)} WEAPONS</span></div><div class="choices">${game.choices
     .map((u) => {
-      const w = game.weapons[u.id],
-        rank = w ? w.level : game.modifications[u.id] || 0;
-      return `<button class="choice ${u.rarity === 'WEAPON' ? 'weapon-choice' : ''}" data-action="upgrade" data-value="${u.id}"><div class="choice-top"><span>${u.rarity}</span><small>${rank ? `RANK ${rank} → ${rank + 1}` : 'NEW'}</small></div><div class="choice-icon">${u.icon}</div><h2>${u.name}</h2><p>${u.description}</p><div class="choice-bottom">${w?.level === 4 ? 'EVOLUTION WITH MATCHING MUTATION' : 'INSTALL MODIFICATION'} <b>↗</b></div></button>`;
+      const preview = upgradePreview(game, u.id);
+      const weapon = WEAPONS[u.id];
+      return `<button class="choice ${weapon ? 'weapon-choice' : ''} ${preview.evolves ? 'evolution-choice' : ''}" data-action="upgrade" data-value="${u.id}"><div class="choice-top"><span>${preview.lane}</span><small>${weapon ? `WEAPON ${preview.next}/5` : `RANK ${preview.next}`}</small></div><div class="choice-icon" ${weapon ? `style="color:${weapon.color}"` : ''}>${u.icon}</div><div class="choice-identity">${weapon ? weapon.name : u.rarity}</div><h2>${preview.title}</h2><ul class="upgrade-effects">${preview.lines.map((line) => `<li>${line}</li>`).join('')}</ul><div class="choice-bottom">${preview.evolves ? 'TRANSFORM YOUR WEAPON' : weapon && !game.weapons[u.id] ? 'ADD TO YOUR ARSENAL' : weapon ? 'INSTALL & FIRE IMMEDIATELY' : 'APPLY THIS ADAPTATION'} <b>↗</b></div></button>`;
     })
     .join(
       '',
-    )}</div><div class="upgrade-footer"><span>${game.pendingLevels > 1 ? `${game.pendingLevels - 1} MORE ADAPTATIONS QUEUED` : 'FIELD SIMULATION PAUSED'}</span>${action(`↻ REROLL (${game.rerolls})`, 'reroll', 'text-button', game.rerolls ? '' : 'disabled')}</div></div>`;
+    )}</div><div class="upgrade-footer"><span>${game.pendingLevels > 1 ? `${game.pendingLevels - 1} MORE CHOICES QUEUED` : 'FIELD SIMULATION PAUSED'}</span>${action(`↻ REROLL (${game.rerolls})`, 'reroll', 'text-button', game.rerolls ? '' : 'disabled')}</div></div>`;
 }
 function endScreen() {
   if (!result) {

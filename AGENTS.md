@@ -35,3 +35,7 @@ Keep simulation and content definitions browser-independent (`src/game.js`, `src
 ## Field Edition 1.0
 
 `src/expedition.js` owns field events, elite conversion, campaign objective queries, and overtime. `src/audio.js` synthesizes the score and effects after a user gesture. Campaign chapters, difficulties, field kits, and evolution requirements are defined in `src/content.js`. Preserve v2 profile and version-one checkpoint migration. The four original raster assets in `assets/art/` use regular atlases; their layouts and exact generation prompts are documented there. Add any new runtime public asset to both precache and content hashing in `vite.config.js`. Do not silently replace saves or remove the backup restoration confirmation.
+
+## Upgrade Design (Field Edition 1.1)
+
+`src/build.js` is the shared source of truth for weapon patterns used by simulation, rendering, and card previews. Keep those three consumers in agreement. New offers cap arsenals at four weapon families and preserve the focused weapon/evolution path. Preserve older pending choices and larger saved arsenals. Test weapon-pattern changes and offer generation in `tests/build.test.js`.

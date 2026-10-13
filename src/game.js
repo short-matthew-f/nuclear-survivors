@@ -16,6 +16,7 @@ import {
   missionReady,
   missionGoals,
 } from './expedition.js';
+import { weaponPattern, WEAPON_LIMIT, WEAPON_STEPS } from './build.js';
 export { DURATION, UPGRADES } from './content.js';
 export const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 export function seededRandom(seed) {
@@ -109,6 +110,7 @@ export function createGame(random = Math.random, options = {}) {
       novaPower: operator.id === 'bastion' ? 1.5 : 1,
       angle: -Math.PI / 4,
     },
+    focusWeapon: operator.weapon,
     weapons: { [operator.weapon]: { level: 1, clock: 0, evolved: false } },
     enemies: [],
     bullets: [],
@@ -151,13 +153,36 @@ export function chooseUpgrades(g) {
     (u) =>
       (g.modifications[u.id] || 0) < u.cap &&
       (!u.weapon || g.weapons[u.weapon]) &&
-      (!g.weapons[u.id] || g.weapons[u.id].level < 5),
+      (!g.weapons[u.id] || g.weapons[u.id].level < 5) &&
+      (!WEAPONS[u.id] ||
+        g.weapons[u.id] ||
+        Object.keys(g.weapons).length < WEAPON_LIMIT) &&
+      (u.id !== 'multishot' || g.weapons.carbine || g.weapons.scatter),
   );
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(g.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
-  g.choices = pool.slice(0, 3);
+  const growing = pool.filter((u) => g.weapons[u.id]);
+  const focus = growing.find((u) => u.id === g.focusWeapon) || growing[0];
+  const mature = Object.entries(g.weapons)
+    .sort(
+      ([a], [b]) => Number(b === g.focusWeapon) - Number(a === g.focusWeapon),
+    )
+    .find(
+      ([id, w]) =>
+        w.level >= 3 &&
+        !w.evolved &&
+        pool.some((u) => u.id === EVOLUTIONS[id].mutation) &&
+        !(g.modifications[EVOLUTIONS[id].mutation] > 0),
+    );
+  const synergy = mature
+    ? pool.find((u) => u.id === EVOLUTIONS[mature[0]].mutation)
+    : pool.find((u) => !WEAPONS[u.id]);
+  const newWeapon = pool.find((u) => WEAPONS[u.id] && !g.weapons[u.id]);
+  g.choices = [...new Set([focus, synergy, newWeapon].filter(Boolean))];
+  for (const u of pool)
+    if (g.choices.length < 3 && !g.choices.includes(u)) g.choices.push(u);
   if (!g.choices.length) {
     g.player.hp = Math.min(g.player.maxHp, g.player.hp + 30);
     g.pendingLevels = 0;
@@ -199,8 +224,28 @@ export function applyUpgrade(g, id) {
   if (Object.hasOwn(WEAPONS, id)) {
     if (!g.weapons[id]) g.weapons[id] = { level: 1, clock: 0, evolved: false };
     else g.weapons[id].level++;
+    g.focusWeapon = id;
+    g.weapons[id].clock = 0;
   }
   g.modifications[id] = (g.modifications[id] || 0) + 1;
+  const chosen = UPGRADES.find((u) => u.id === id);
+  announce(
+    g,
+    WEAPONS[id]
+      ? `${WEAPONS[id].name.toUpperCase()} · ${WEAPON_STEPS[id][g.weapons[id].level - 1].toUpperCase()}`
+      : `${chosen.name.toUpperCase()} INSTALLED`,
+    4,
+  );
+  burst(g, p.x, p.y, WEAPONS[id]?.color || '#d7f5a8', 18);
+  g.effects.push({
+    kind: 'ring',
+    x: p.x,
+    y: p.y,
+    radius: 70,
+    life: 0.55,
+    maxLife: 0.55,
+    color: WEAPONS[id]?.color || '#d7f5a8',
+  });
   checkEvolutions(g);
   g.pendingLevels = Math.max(0, g.pendingLevels - 1);
   g.state = 'playing';
@@ -218,6 +263,18 @@ export function checkEvolutions(g) {
       (g.modifications[requirement] || 0) >= 1
     ) {
       w.evolved = true;
+      w.clock = 0;
+      g.shake = 8;
+      burst(g, g.player.x, g.player.y, WEAPONS[id].color, 35);
+      g.effects.push({
+        kind: 'ring',
+        x: g.player.x,
+        y: g.player.y,
+        radius: 180,
+        life: 0.9,
+        maxLife: 0.9,
+        color: WEAPONS[id].color,
+      });
       announce(g, `${evolution.name.toUpperCase()} EVOLVED`, 6);
     }
   }
@@ -405,15 +462,15 @@ function weapons(g, dt) {
   );
   if (target) p.angle = Math.atan2(target.y - p.y, target.x - p.x);
   for (const [id, w] of Object.entries(g.weapons)) {
+    const pattern = weaponPattern(g, id);
     w.clock -= dt;
     if (id === 'orbit') {
-      const radius = (55 + w.level * 5) * p.area,
-        blades = w.level + (w.evolved ? 3 : 0);
+      const radius = pattern.radius,
+        blades = pattern.count;
       for (const e of targets) {
         if (e.orbitHit > g.time) continue;
         for (let i = 0; i < blades; i++) {
-          const a =
-            g.time * (w.evolved ? 3.4 : 2.3) + (i * Math.PI * 2) / blades;
+          const a = g.time * pattern.spin + (i * Math.PI * 2) / blades;
           if (
             distance(e, {
               x: p.x + Math.cos(a) * radius,
@@ -421,7 +478,7 @@ function weapons(g, dt) {
             }) <
             e.radius + 14
           ) {
-            hitEnemy(g, e, 18 + w.level * 7);
+            hitEnemy(g, e, pattern.damage);
             e.orbitHit = g.time + 0.3;
             break;
           }
@@ -432,9 +489,7 @@ function weapons(g, dt) {
     if (w.clock > 0 || (!target && id !== 'mine')) continue;
     if (id === 'scatter' || id === 'drone') {
       const scatter = id === 'scatter';
-      const shots = scatter
-        ? 4 + w.level + (w.evolved ? 6 : 0)
-        : Math.ceil(w.level / 2) + (w.evolved ? 3 : 0);
+      const shots = pattern.count;
       for (let i = 0; i < shots; i++) {
         const a = p.angle + (i - (shots - 1) / 2) * (scatter ? 0.12 : 0.06);
         const launch = scatter
@@ -451,14 +506,14 @@ function weapons(g, dt) {
           y: launch.y,
           vx: Math.cos(aim) * (scatter ? 540 : 580),
           vy: Math.sin(aim) * (scatter ? 540 : 580),
-          damage: scatter ? 14 + w.level * 4 : 20 + w.level * 9,
-          life: scatter ? 0.42 * p.area : 1.2,
-          pierce: scatter ? 1 + Number(w.evolved) : Number(w.evolved),
+          damage: pattern.damage,
+          life: scatter ? pattern.reach / 540 : 1.2,
+          pierce: scatter ? pattern.pierce : Number(w.evolved),
           hits: new Set(),
           color: scatter ? '#ffb384' : '#a6c9ff',
         });
       }
-      w.clock = (scatter ? 1.25 : 0.9) * p.haste * (w.evolved ? 0.65 : 1);
+      w.clock = pattern.interval;
       g.shotsFired += shots;
       g.effects.push({
         kind: 'ring',
@@ -471,18 +526,20 @@ function weapons(g, dt) {
       });
     }
     if (id === 'carbine') {
-      const shots = p.shots + (w.evolved ? 2 : 0),
-        damage = p.damage * (1 + (w.level - 1) * 0.25);
+      const shots = pattern.count,
+        damage = pattern.damage;
       for (let i = 0; i < shots; i++) {
-        const a = p.angle + (i - (shots - 1) / 2) * 0.14;
+        const a = p.angle,
+          offset = (i - (shots - 1) / 2) * 7;
         g.bullets.push({
-          x: p.x,
-          y: p.y,
+          x: p.x + Math.cos(a + Math.PI / 2) * offset,
+          y: p.y + Math.sin(a + Math.PI / 2) * offset,
           vx: Math.cos(a) * 660,
           vy: Math.sin(a) * 660,
           damage,
           life: 1.4,
-          pierce: p.pierce + (w.evolved ? 4 : 0),
+          pierce: pattern.pierce,
+          width: w.evolved ? 4 : w.level >= 3 ? 3 : 2.5,
           hits: new Set(),
           color: w.evolved ? '#b7f6f4' : '#f8dc91',
         });
@@ -497,13 +554,13 @@ function weapons(g, dt) {
         maxLife: 0.1,
         color: '#ffe1a0',
       });
-      w.clock = p.interval * p.haste * (w.evolved ? 0.65 : 1);
+      w.clock = pattern.interval;
     }
     if (id === 'arc') {
       const visited = new Set();
       let from = p,
         to = target;
-      for (let i = 0; i < w.level + 1 + (w.evolved ? 4 : 0) && to; i++) {
+      for (let i = 0; i < pattern.count && to; i++) {
         visited.add(to.id);
         g.effects.push({
           kind: 'arc',
@@ -515,24 +572,23 @@ function weapons(g, dt) {
           maxLife: 0.22,
           color: '#9dedfa',
         });
-        hitEnemy(g, to, 28 + w.level * 8);
+        hitEnemy(g, to, pattern.damage);
         from = to;
         to = targets
           .filter(
             (e) =>
               !visited.has(e.id) &&
               e.hp > 0 &&
-              distance(e, from) < 210 * p.area,
+              distance(e, from) < pattern.reach,
           )
           .sort((a, b) => distance(a, from) - distance(b, from))[0];
       }
-      w.clock = 1.8 * p.haste * (w.evolved ? 0.55 : 1);
+      w.clock = pattern.interval;
     }
     if (id === 'pulse') {
-      const radius = (85 + w.level * 16) * p.area * (w.evolved ? 1.35 : 1);
+      const radius = pattern.radius;
       for (const e of targets)
-        if (distance(e, p) < radius + e.radius)
-          hitEnemy(g, e, 32 + w.level * 14);
+        if (distance(e, p) < radius + e.radius) hitEnemy(g, e, pattern.damage);
       g.effects.push({
         kind: 'ring',
         x: p.x,
@@ -542,19 +598,22 @@ function weapons(g, dt) {
         maxLife: 0.5,
         color: '#b8e97d',
       });
-      w.clock = 3 * p.haste * (w.evolved ? 0.6 : 1);
+      w.clock = pattern.interval;
     }
     if (id === 'mine') {
-      g.mines.push({
-        x: p.x,
-        y: p.y,
-        life: 12,
-        arm: 0.5,
-        radius: (65 + w.level * 12) * p.area,
-        damage: 60 + w.level * 25,
-        evolved: w.evolved,
-      });
-      w.clock = 2.4 * p.haste;
+      for (let i = 0; i < pattern.count; i++) {
+        const offset = (i - (pattern.count - 1) / 2) * 32;
+        g.mines.push({
+          x: p.x + Math.cos(p.angle + Math.PI / 2) * offset,
+          y: p.y + Math.sin(p.angle + Math.PI / 2) * offset,
+          life: 12,
+          arm: 0.5,
+          radius: pattern.radius,
+          damage: pattern.damage,
+          evolved: w.evolved,
+        });
+      }
+      w.clock = pattern.interval;
     }
   }
 }

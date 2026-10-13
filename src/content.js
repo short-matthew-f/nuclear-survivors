@@ -328,7 +328,7 @@ export const UPGRADES = [
     id: 'multishot',
     name: 'Split chamber',
     description:
-      'Carbine fires an extra projectile. Required for the shotgun evolution.',
+      'Add one carbine round and two shotgun pellets per volley. Required for the shotgun evolution.',
     icon: '⋔',
     cap: 4,
     rarity: 'WEAPON MOD',

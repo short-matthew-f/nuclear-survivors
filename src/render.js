@@ -1,4 +1,5 @@
 import { distance } from './game.js';
+import { weaponPattern } from './build.js';
 import { artUrl } from './art.js';
 import { FIELD_EVENTS } from './content.js';
 const TAU = Math.PI * 2;
@@ -581,7 +582,7 @@ export function createRenderer(canvas) {
     }
     for (const b of g.bullets) {
       ctx.strokeStyle = b.color;
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = b.width || 2.5;
       ctx.beginPath();
       ctx.moveTo(b.x, b.y);
       ctx.lineTo(b.x - b.vx * 0.025, b.y - b.vy * 0.025);
@@ -593,11 +594,12 @@ export function createRenderer(canvas) {
     }
     const orbit = g.weapons.orbit;
     if (orbit) {
-      const radius = (55 + orbit.level * 5) * p.area,
-        blades = orbit.level + (orbit.evolved ? 3 : 0);
+      const pattern = weaponPattern(g, 'orbit');
+      const radius = pattern.radius,
+        blades = pattern.count;
       ring(ctx, p.x, p.y, radius, '#c7ebca18');
       for (let i = 0; i < blades; i++) {
-        const a = g.time * (orbit.evolved ? 3.4 : 2.3) + (i * TAU) / blades,
+        const a = g.time * pattern.spin + (i * TAU) / blades,
           x = p.x + Math.cos(a) * radius,
           y = p.y + Math.sin(a) * radius;
         ctx.save();
@@ -664,7 +666,7 @@ export function createRenderer(canvas) {
     }
     if (g.weapons.drone) {
       const w = g.weapons.drone,
-        count = Math.ceil(w.level / 2) + (w.evolved ? 3 : 0);
+        count = weaponPattern(g, 'drone').count;
       for (let i = 0; i < count; i++) {
         const a = g.time * 1.5 + i * 2.1,
           x = p.x + Math.cos(a) * 45,

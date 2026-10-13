@@ -4,14 +4,14 @@ A fullscreen, touch-first survival roguelite in a radioactive exclusion zone. Dr
 
 **[Play the game](https://short-matthew-f.github.io/nuclear-survivors/)**
 
-## Field edition 1.0
+## Field edition 1.1
 
 - Edge-to-edge Canvas gameplay with a compact HUD. No page header, footer, sidebar, or keyboard movement.
 - A floating analog thumbstick, multi-touch dash and shockwave abilities, automatic aiming, optional sound, and supported-device haptics.
 - Three operators: Nomad, Spark, and Bastion. Each has a distinct starting weapon and passive traits.
 - Three unlockable sectors: Red Forest, The Drowned, and Dead Reactor, with different palettes, terrain decoration, atmosphere, and difficulty.
 - Seven weapon families: Cinder shotgun and Watchdog escort drones join the ballistic carbine, chain lightning, orbital saws, radiation bursts, and proximity mines. Each has five levels and a paired mutation that unlocks an evolution.
-- Twenty-one upgrade choices, with stacking mutations, upgrade caps, and two rerolls per run.
+- Twenty-one upgrades with a directed build path: each level prioritizes your focused weapon, a mutation/evolution key, and a new weapon when a slot is available. New operations carry up to four weapon families. Two rerolls per run. Existing larger arsenals and pending choices are preserved.
 - Six regular enemy behaviors: walkers, runners, brutes, ranged spitters, charging ravagers, and splitting brood.
 - Three titan encounters, with projectile rings, targeted spreads, summons, radiation formations, and faster attacks at low health.
 - Escalating hordes, telegraphed radiation hazards, medical supplies, salvage drops, supply caches, and boss relics.
@@ -52,7 +52,7 @@ No environment variables, credentials, accounts, fixtures, or server are require
 
 Drag anywhere on the field to move; drag slightly for slower movement. Use another finger to tap **Dash** or **Shockwave**. The same drag controls work with a mouse. Weapons automatically aim at the nearest enemy. The pause button freezes play; switching away from the app also pauses. Escape can toggle pause on desktop, but movement is entirely pointer-based.
 
-Green cores award experience. Pick one upgrade at each level. Supply caches restore 15 health, award salvage, and pull cores closer. Medkits restore 35 health. Titan relics grant a bonus upgrade and salvage. Follow the on-field marker to extraction, an active field event, a boss relic, or a supply cache. Enter an event’s marked circle and hold there until its progress fills; convoys require clearing their elite guards first.
+Green cores award experience. Pick one upgrade at each level. Weapon ranks change volley patterns, escort/blade counts, penetration, mine clusters, range, or firing cadence. Cards preview the exact next pattern and show the evolution key. Choosing a weapon makes it your focus for subsequent offers. Weapon upgrades reset their fire timer, and evolutions produce a visible transformation burst. Supply caches restore 15 health, award salvage, and pull cores closer. Medkits restore 35 health. Titan relics grant a bonus upgrade and salvage. Follow the on-field marker to extraction, an active field event, a boss relic, or a supply cache. Enter an event’s marked circle and hold there until its progress fills; convoys require clearing their elite guards first.
 
 Titans arrive at **1:30**, **3:30**, and **6:30**. In extraction mode, the rescue beacon opens at **8:00**. Follow its cyan marker and hold inside it for eight seconds. Progress slowly decays when you step outside. Endless mode continues with stronger titans and has no rescue. Story mode also requires the chapter’s listed rescue, relay, or titan objectives before extraction can open. Missing mission signals are offered again. When the beacon opens, Overtime offers a full heal and four more minutes for 75% extra run salvage; this commitment is available once and is disabled in daily challenges.
 
@@ -83,6 +83,7 @@ Progress lives in local browser storage on that device and origin. Runs checkpoi
 ## Structure
 
 - `src/content.js`: operator, zone, weapon, upgrade, enemy, research, and achievement definitions.
+- `src/build.js`: shared weapon patterns, rank identities, upgrade previews, evolution paths, and weapon-slot limits.
 - `src/game.js`: browser-independent simulation, progression, abilities, AI, bosses, and extraction.
 - `src/expedition.js`: field events, elite conversion, mission objectives, and overtime.
 - `src/art.js`: absolute artwork URLs shared by CSS and Canvas under the Pages project scope.
