@@ -9,6 +9,7 @@ import {
   EVOLUTIONS,
   DIFFICULTIES,
   PERKS,
+  ABILITIES,
 } from './content.js';
 import {
   updateExpedition,
@@ -17,6 +18,8 @@ import {
   missionGoals,
 } from './expedition.js';
 import { weaponPattern, WEAPON_LIMIT, WEAPON_STEPS } from './build.js';
+import { activateAbility, updateAbilities } from './abilities.js';
+import { enemyTypeFor, updateEnemyBehavior } from './enemy-behavior.js';
 export { DURATION, UPGRADES } from './content.js';
 export const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 export function seededRandom(seed) {
@@ -44,6 +47,21 @@ export function createGame(random = Math.random, options = {}) {
   const difficulty =
     DIFFICULTIES.find((d) => d.id === options.difficulty) || DIFFICULTIES[1];
   const perk = PERKS.find((p) => p.id === options.perk)?.id || 'none';
+  const ability =
+    ABILITIES.find((a) => a.id === options.ability) ||
+    ABILITIES.find((a) => a.id === operator.ability) ||
+    ABILITIES[0];
+  const weapon = Object.hasOwn(WEAPONS, options.weapon)
+    ? options.weapon
+    : operator.weapon;
+  const allowedWeapons = [
+    ...new Set([
+      weapon,
+      ...(Array.isArray(options.allowedWeapons)
+        ? options.allowedWeapons.filter((id) => Object.hasOwn(WEAPONS, id))
+        : Object.keys(WEAPONS)),
+    ]),
+  ];
   const hp =
     operator.hp + (research.vitality || 0) * 10 + (perk === 'medic' ? 30 : 0);
   const g = {
@@ -53,6 +71,8 @@ export function createGame(random = Math.random, options = {}) {
     mode: options.mode || 'extraction',
     difficulty,
     perk,
+    ability: ability.id,
+    allowedWeapons,
     chapter: options.chapter || null,
     daily: options.daily || null,
     extractionAt: DURATION,
@@ -65,7 +85,8 @@ export function createGame(random = Math.random, options = {}) {
     fieldEvent: null,
     eventIndex: 0,
     nextEvent: 40,
-    buffs: { overdrive: 0 },
+    buffs: { overdrive: 0, surge: 0 },
+    turrets: [],
     revives: 0,
     shotsFired: 0,
     damageTaken: 0,
@@ -85,7 +106,7 @@ export function createGame(random = Math.random, options = {}) {
       y: 0,
       hp,
       maxHp: hp,
-      speed: operator.speed,
+      speed: operator.speed + (research.mobility || 0) * 6,
       damage: 24,
       interval: 0.52,
       magnet: 80 + (research.salvage || 0) * 15 + (perk === 'magnet' ? 60 : 0),
@@ -93,25 +114,26 @@ export function createGame(random = Math.random, options = {}) {
       invulnerable: 0,
       armor: operator.id === 'bastion' ? 3 : 0,
       regen:
-        (operator.id === 'nomad' ? 0.2 : 0) + (research.recovery || 0) * 0.15,
-      crit: 0.05,
+        (operator.id === 'nomad' ? 0.2 : operator.id === 'morrow' ? 0.5 : 0) +
+        (research.recovery || 0) * 0.15,
+      crit: operator.id === 'vesper' ? 0.15 : 0.05,
       area: 1,
       pierce: 0,
-      xpBonus: 1,
+      xpBonus: 1 + (research.training || 0) * 0.1,
       power: 1 + (research.power || 0) * 0.08,
       haste: operator.id === 'spark' ? 0.88 : 1,
-      dashCooldown: 5,
+      dashCooldown: operator.id === 'vesper' ? 4 : 5,
       dashTimer: 0,
       dashLeft: 0,
       dashX: 1,
       dashY: 0,
-      novaCooldown: 18,
+      novaCooldown: ability.cooldown * (1 - (research.cooling || 0) * 0.05),
       novaTimer: 0,
       novaPower: operator.id === 'bastion' ? 1.5 : 1,
       angle: -Math.PI / 4,
     },
-    focusWeapon: operator.weapon,
-    weapons: { [operator.weapon]: { level: 1, clock: 0, evolved: false } },
+    focusWeapon: weapon,
+    weapons: { [weapon]: { level: 1, clock: 0, evolved: false } },
     enemies: [],
     bullets: [],
     hostile: [],
@@ -139,7 +161,7 @@ export function createGame(random = Math.random, options = {}) {
     extraction: null,
     extractProgress: 0,
     contract: { kills: 0, crates: 0, boss: 0 },
-    rerolls: perk === 'magnet' ? 3 : 2,
+    rerolls: (perk === 'magnet' ? 3 : 2) + (research.logistics || 0),
     settled: false,
   };
   return g;
@@ -156,7 +178,8 @@ export function chooseUpgrades(g) {
       (!g.weapons[u.id] || g.weapons[u.id].level < 5) &&
       (!WEAPONS[u.id] ||
         g.weapons[u.id] ||
-        Object.keys(g.weapons).length < WEAPON_LIMIT) &&
+        (g.allowedWeapons.includes(u.id) &&
+          Object.keys(g.weapons).length < WEAPON_LIMIT)) &&
       (u.id !== 'multishot' || g.weapons.carbine || g.weapons.scatter),
   );
   for (let i = pool.length - 1; i > 0; i--) {
@@ -321,11 +344,18 @@ export function burst(g, x, y, color, count = 8) {
   }
   if (g.particles.length > 350) g.particles.splice(0, g.particles.length - 350);
 }
-export function hitEnemy(g, e, amount) {
-  if (e.hp <= 0) return;
+export function hitEnemy(g, e, amount, source = g.player, kind = 'impact') {
+  if (e.hp <= 0 || e.burrowLeft > 0) return;
+  let shield = 1;
+  if (e.type === 'shield' && kind === 'ballistic') {
+    const facing = Math.atan2(g.player.y - e.y, g.player.x - e.x);
+    const impact = Math.atan2(source.y - e.y, source.x - e.x);
+    if (Math.cos(facing - impact) > 0.45) shield = 0.3;
+  }
   const critical = g.random() < g.player.crit;
   const damage =
     amount *
+    shield *
     g.player.power *
     (critical ? 2 : 1) *
     (g.buffs.overdrive > 0 ? 1.6 : 1) *
@@ -365,6 +395,20 @@ export function hitEnemy(g, e, amount) {
     announce(g, 'TITAN DOWN · RECOVER THE RELIC', 5);
     g.shake = 14;
   }
+  if (e.type === 'bomber') {
+    g.effects.push({
+      kind: 'ring',
+      x: e.x,
+      y: e.y,
+      radius: 95,
+      life: 0.5,
+      maxLife: 0.5,
+      color: '#ffc19a',
+    });
+    for (const other of [...g.enemies])
+      if (other !== e && other.hp > 0 && distance(other, e) < 95)
+        hitEnemy(g, other, 40, e);
+  }
   if (e.type === 'splitter')
     for (let i = 0; i < 3; i++)
       spawnEnemy(g, 'runner', e.x + (i - 1) * 18, e.y + 10, 0.5);
@@ -393,6 +437,12 @@ export function spawnEnemy(g, type = 'walker', x, y, scale = 1) {
     vy: 0,
     orbitHit: 0,
     phase: 0,
+    frozen: 0,
+    burrowLeft: 0,
+    detonate: 0,
+    burnLeft: 0,
+    burnClock: 0,
+    burnDamage: 0,
   };
   g.enemies.push(e);
   return e;
@@ -410,24 +460,7 @@ export function activateDash(g, input = { x: 0, y: 0 }) {
   return true;
 }
 export function activateNova(g) {
-  if (g.state !== 'playing' || g.player.novaTimer > 0) return false;
-  const p = g.player,
-    radius = 180 * p.area;
-  for (const e of [...g.enemies])
-    if (distance(e, p) < radius + e.radius) hitEnemy(g, e, 80 * p.novaPower);
-  g.hostile = g.hostile.filter((b) => distance(b, p) > radius);
-  g.effects.push({
-    kind: 'ring',
-    x: p.x,
-    y: p.y,
-    radius,
-    life: 0.6,
-    maxLife: 0.6,
-    color: '#d0f29a',
-  });
-  g.player.novaTimer = g.player.novaCooldown;
-  g.shake = 10;
-  return true;
+  return activateAbility(g);
 }
 function randomNearby(g, radius) {
   const a = g.random() * Math.PI * 2;
@@ -455,7 +488,7 @@ function contracts(g) {
 }
 function weapons(g, dt) {
   const p = g.player,
-    targets = g.enemies.filter((e) => e.hp > 0);
+    targets = g.enemies.filter((e) => e.hp > 0 && !(e.burrowLeft > 0));
   const target = targets.reduce(
     (best, e) => (!best || distance(e, p) < distance(best, p) ? e : best),
     null,
@@ -600,6 +633,53 @@ function weapons(g, dt) {
       });
       w.clock = pattern.interval;
     }
+    if (id === 'discus') {
+      for (let i = 0; i < pattern.count; i++) {
+        const a = p.angle + (i - (pattern.count - 1) / 2) * 0.18;
+        g.bullets.push({
+          kind: 'discus',
+          x: p.x,
+          y: p.y,
+          vx: Math.cos(a) * 420,
+          vy: Math.sin(a) * 420,
+          damage: pattern.damage,
+          life: 1.6,
+          age: 0,
+          returning: false,
+          pierce: 999,
+          hits: new Set(),
+          color: w.evolved ? '#f4e6ba' : '#c9e5ff',
+        });
+      }
+      g.shotsFired += pattern.count;
+      w.clock = pattern.interval;
+    }
+    if (id === 'flame') {
+      const half = w.evolved ? 0.85 : 0.45;
+      for (const e of targets) {
+        const angle = Math.atan2(e.y - p.y, e.x - p.x);
+        if (
+          distance(e, p) < pattern.radius + e.radius &&
+          Math.cos(angle - p.angle) > Math.cos(half)
+        ) {
+          hitEnemy(g, e, pattern.damage);
+          e.burnLeft = 2.5;
+          e.burnDamage = 6 + w.level * 2;
+        }
+      }
+      g.effects.push({
+        kind: 'cone',
+        x: p.x,
+        y: p.y,
+        angle: p.angle,
+        half,
+        radius: pattern.radius,
+        life: 0.22,
+        maxLife: 0.22,
+        color: w.evolved ? '#ffe4a2' : '#ffb67c',
+      });
+      w.clock = pattern.interval;
+    }
     if (id === 'mine') {
       for (let i = 0; i < pattern.count; i++) {
         const offset = (i - (pattern.count - 1) / 2) * 32;
@@ -634,8 +714,9 @@ export function update(
   p.hp = Math.min(p.maxHp, p.hp + p.regen * dt);
   const length = Math.hypot(input.x, input.y),
     normal = Math.max(1, length);
-  const dx = p.dashLeft > 0 ? p.dashX * 750 : (input.x / normal) * p.speed,
-    dy = p.dashLeft > 0 ? p.dashY * 750 : (input.y / normal) * p.speed;
+  const speed = p.speed * (g.buffs.surge > 0 ? 1.25 : 1);
+  const dx = p.dashLeft > 0 ? p.dashX * 750 : (input.x / normal) * speed,
+    dy = p.dashLeft > 0 ? p.dashY * 750 : (input.y / normal) * speed;
   p.x += dx * dt;
   p.y += dy * dt;
   g.distance += Math.hypot(dx, dy) * dt;
@@ -648,13 +729,7 @@ export function update(
   }
   g.spawnClock -= dt;
   if (g.spawnClock <= 0 && g.enemies.length < 170) {
-    const roll = g.random();
-    let type = 'walker';
-    if (g.time > 25 && roll < 0.2) type = 'runner';
-    if (g.time > 60 && roll > 0.82) type = 'brute';
-    if (g.time > 100 && roll > 0.65 && roll < 0.78) type = 'spitter';
-    if (g.time > 150 && roll > 0.45 && roll < 0.58) type = 'charger';
-    if (g.time > 210 && roll > 0.3 && roll < 0.42) type = 'splitter';
+    const type = enemyTypeFor(g, g.random());
     const a = g.random() * Math.PI * 2,
       r = Math.hypot(view.width, view.height) / 2 + 45;
     const spawned = spawnEnemy(
@@ -717,6 +792,7 @@ export function update(
     const d = distance(e, p) || 1;
     e.hit = Math.max(0, e.hit - dt);
     e.attack -= dt;
+    if (updateEnemyBehavior(g, e, dt)) continue;
     if (e.windup > 0) {
       e.windup = Math.max(0, e.windup - dt);
       if (e.windup === 0) e.charge = 0.65;
@@ -787,8 +863,22 @@ export function update(
   }
   if (g.state === 'dead') return;
   updateExpedition(g, dt);
+  updateAbilities(g, dt);
   weapons(g, dt);
   for (const b of g.bullets) {
+    if (b.kind === 'discus') {
+      b.age += dt;
+      if (b.age >= 0.55) {
+        if (!b.returning) {
+          b.returning = true;
+          b.hits.clear();
+        }
+        const d = distance(b, p) || 1;
+        b.vx = ((p.x - b.x) / d) * 500;
+        b.vy = ((p.y - b.y) / d) * 500;
+        if (d < 14) b.life = 0;
+      }
+    }
     const old = { x: b.x, y: b.y };
     b.x += b.vx * dt;
     b.y += b.vy * dt;
@@ -810,7 +900,13 @@ export function update(
         distance(e, { x: old.x + t * vx, y: old.y + t * vy }) <
         e.radius + 4
       ) {
-        hitEnemy(g, e, b.damage);
+        hitEnemy(
+          g,
+          e,
+          b.damage,
+          { x: e.x - b.vx, y: e.y - b.vy },
+          b.pierce > 0 ? 'piercing' : 'ballistic',
+        );
         b.hits.add(e.id);
         if (b.pierce-- <= 0) b.life = 0;
       }
@@ -892,7 +988,8 @@ export function update(
   g.supplies = g.supplies.filter((s) => {
     if (distance(s, p) > 30) return distance(s, p) < 1800;
     if (s.kind === 'medkit') {
-      const heal = g.perk === 'medic' ? 60 : 35;
+      const heal =
+        (g.perk === 'medic' ? 60 : 35) + (g.operator.id === 'morrow' ? 15 : 0);
       p.hp = Math.min(p.maxHp, p.hp + heal);
       announce(g, `MEDKIT · +${heal} HEALTH`, 2);
     }

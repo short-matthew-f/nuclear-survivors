@@ -8,6 +8,8 @@ import {
   DIFFICULTIES,
   CHAPTERS,
   PERKS,
+  ABILITIES,
+  LEGACY_WEAPONS,
 } from './content.js';
 export const CHECKPOINT_KEY = 'nuclear-survivors-operation-v1';
 export function serializeRun(game) {
@@ -60,10 +62,15 @@ export function restoreRun(raw) {
       perk: data.perk,
       chapter: data.chapter,
       daily: data.daily,
+      ability: data.ability || 'shockwave',
+      allowedWeapons: data.allowedWeapons || LEGACY_WEAPONS,
     });
     // Version-one checkpoints predate expedition fields. Migrate only those optional additions.
     for (const key of [
       'difficulty',
+      'ability',
+      'allowedWeapons',
+      'turrets',
       'focusWeapon',
       'perk',
       'chapter',
@@ -92,6 +99,23 @@ export function restoreRun(raw) {
     )
       return null;
     if (!Object.hasOwn(WEAPONS, data.focusWeapon)) return null;
+    if (
+      !ABILITIES.some((a) => a.id === data.ability) ||
+      !Array.isArray(data.allowedWeapons) ||
+      data.allowedWeapons.some((id) => !Object.hasOwn(WEAPONS, id)) ||
+      !Array.isArray(data.turrets) ||
+      data.turrets.length > 2 ||
+      data.turrets.some(
+        (t) =>
+          !t ||
+          !['x', 'y', 'life', 'clock', 'damage', 'angle'].every((k) =>
+            Number.isFinite(t[k]),
+          ),
+      )
+    )
+      return null;
+    if (!('surge' in data.buffs)) data.buffs.surge = 0;
+    if (!Number.isFinite(data.buffs.surge)) return null;
     for (const record of [data.eventCounts, data.enemyKills]) {
       if (
         !record ||

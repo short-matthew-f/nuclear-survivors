@@ -39,3 +39,7 @@ Keep simulation and content definitions browser-independent (`src/game.js`, `src
 ## Upgrade Design (Field Edition 1.1)
 
 `src/build.js` is the shared source of truth for weapon patterns used by simulation, rendering, and card previews. Keep those three consumers in agreement. New offers cap arsenals at four weapon families and preserve the focused weapon/evolution path. Preserve older pending choices and larger saved arsenals. Test weapon-pattern changes and offer generation in `tests/build.test.js`.
+
+## Roster and Armory (Field Edition 1.2)
+
+`src/abilities.js` handles the equipped active ability and sentries; `activateNova` remains a compatibility entry point. `src/enemy-behavior.js` owns encounter selection and special enemy/status updates. Profiles track weapon/ability ownership and per-hero starting loadouts. Hero recruitment grants signature gear. Keep pre-1.2 profiles’ seven weapon families and existing operations’ Shockwave/weapon pool during migration. `assets/art/roster.png` adds a 4-by-2 atlas and must remain in the offline worker precache and hash inputs.

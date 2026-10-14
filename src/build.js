@@ -1,4 +1,4 @@
-import { WEAPONS, EVOLUTIONS, UPGRADES } from './content.js';
+import { WEAPONS, EVOLUTIONS, UPGRADES, ABILITIES } from './content.js';
 
 export const WEAPON_LIMIT = 4;
 export const WEAPON_STEPS = {
@@ -43,6 +43,20 @@ export const WEAPON_STEPS = {
     'Punch-through',
     'Ten-pellet spread',
     'Room sweeper',
+  ],
+  discus: [
+    'First return',
+    'Twin returns',
+    'High-speed bearings',
+    'Triple return',
+    'Four-blade storm',
+  ],
+  flame: [
+    'Pilot flame',
+    'Longer flame',
+    'Hotter core',
+    'Wide furnace',
+    'White-hot jet',
   ],
   drone: [
     'First escort',
@@ -126,6 +140,20 @@ export function weaponPattern(
       damage: 20 + n * 9,
       interval: [0.9, 0.9, 0.7, 0.7, 0.6][i] * p.haste * (evolved ? 0.65 : 1),
     });
+  if (id === 'discus')
+    Object.assign(pattern, {
+      count: [1, 2, 2, 3, 4][i] + (evolved ? 2 : 0),
+      damage: 22 + n * 8,
+      interval: [1.8, 1.8, 1.5, 1.5, 1.2][i] * p.haste * (evolved ? 0.65 : 1),
+    });
+  if (id === 'flame')
+    Object.assign(pattern, {
+      damage: 8 + n * 3,
+      radius: [110, 130, 150, 170, 190][i] * p.area * (evolved ? 1.3 : 1),
+      interval: 0.2 * p.haste * (evolved ? 0.7 : 1),
+    });
+  if (id === 'drone' && g.operator.id === 'rook') pattern.count++;
+  if (g.buffs.surge > 0) pattern.interval *= 0.65;
   return pattern;
 }
 
@@ -136,6 +164,7 @@ const units = {
   mine: 'charges',
   scatter: 'pellets',
   drone: 'escorts',
+  discus: 'returning blades',
 };
 const number = (value) => Number(value.toFixed(2));
 export function upgradePreview(g, id) {
@@ -155,7 +184,7 @@ export function upgradePreview(g, id) {
         );
     };
     if (units[id]) compare('count', units[id]);
-    if (id === 'pulse' || id === 'mine' || id === 'orbit')
+    if (id === 'pulse' || id === 'mine' || id === 'orbit' || id === 'flame')
       compare('radius', 'radius', Math.round);
     compare('damage', 'damage / hit', (value) =>
       Math.round(value * g.player.power),
@@ -174,6 +203,22 @@ export function upgradePreview(g, id) {
     };
   }
   const p = g.player;
+  const ability = ABILITIES.find((a) => a.id === g.ability) || ABILITIES[0];
+  const strength = (power) =>
+    ({
+      shockwave: Math.round(80 * power * p.power),
+      mend: Math.round(35 * power),
+      surge: `${number(Math.min(16, 8 * power))}s`,
+      freeze: `${number(4 * power)}s`,
+      turret: Math.round(28 * power * p.power),
+    })[ability.id];
+  const abilityLabel = {
+    shockwave: 'Shockwave damage',
+    mend: 'Field mend healing',
+    surge: 'Overclock duration',
+    freeze: 'Cryo duration',
+    turret: 'Sentry damage / shot',
+  }[ability.id];
   const stats = {
     damage: [
       'all-weapon damage',
@@ -207,8 +252,9 @@ export function upgradePreview(g, id) {
       `${number(p.dashCooldown)}s → ${number(p.dashCooldown * 0.85)}s`,
     ],
     nova: [
-      'shockwave damage',
-      `${Math.round(p.novaPower * 80 * p.power)} → ${Math.round((p.novaPower + 0.4) * 80 * p.power)}`,
+      abilityLabel,
+      `${strength(p.novaPower)} → ${strength(p.novaPower + 0.4)}`,
+      `ability cooldown: ${number(p.novaCooldown)}s → ${number(p.novaCooldown * 0.85)}s`,
     ],
     xp: [
       'experience gain',

@@ -122,7 +122,7 @@ test('offline worker precaches under the GitHub Pages project scope', async () =
   assert.ok(active.has(scope + 'index.html'));
   assert.ok(active.has(scope + 'assets/game.js'));
   assert.ok(active.has(scope + 'manifest.webmanifest'));
-  for (const asset of ['key-art', 'characters', 'terrain', 'props'])
+  for (const asset of ['key-art', 'characters', 'terrain', 'props', 'roster'])
     assert.ok(active.has(scope + `art/${asset}.png`));
   assert.ok([...active.keys()].every((url) => url.startsWith(scope)));
   assert.equal(w.skipCount(), 0);
@@ -228,6 +228,7 @@ test('artwork URLs are absolute under the Pages scope even when consumed from a 
     'characters.png',
     'terrain.png',
     'props.png',
+    'roster.png',
   ]) {
     const url = artUrl(file, './', scope);
     assert.equal(url, scope + 'art/' + file);

@@ -160,7 +160,10 @@ test('build focus and older pending offers survive migration without deleting a 
   delete snapshot.game.focusWeapon;
   const migrated = restoreRun(JSON.stringify(snapshot));
   assert.ok(migrated);
-  assert.equal(Object.keys(migrated.weapons).length, 7);
+  assert.equal(
+    Object.keys(migrated.weapons).length,
+    Object.keys(WEAPONS).length,
+  );
   chooseUpgrades(migrated);
   assert.equal(migrated.choices.length, 3);
 });

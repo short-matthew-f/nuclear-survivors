@@ -33,11 +33,102 @@ export const OPERATORS = [
     icon: '◈',
     color: '#f3c782',
     description:
-      'Starts with an orbital saw. Heavy armor and a devastating shockwave.',
+      'Starts with an orbital saw. Heavy armor and 50% stronger active abilities.',
     cost: 180,
     hp: 140,
     speed: 165,
     weapon: 'orbit',
+  },
+];
+OPERATORS[0].ability = 'shockwave';
+OPERATORS[1].ability = 'surge';
+OPERATORS[2].ability = 'shockwave';
+OPERATORS.push(
+  {
+    id: 'morrow',
+    name: 'Morrow',
+    role: 'THE FIELD MEDIC',
+    icon: '+',
+    color: '#f6d8bd',
+    cost: 220,
+    hp: 110,
+    speed: 175,
+    weapon: 'pulse',
+    ability: 'mend',
+    description:
+      'Rad bloom and Field mend. Recover 0.5 health per second; medkits heal 15 extra health.',
+  },
+  {
+    id: 'rook',
+    name: 'Rook',
+    role: 'THE DRONEKEEPER',
+    icon: '✧',
+    color: '#a8d7ff',
+    cost: 320,
+    hp: 105,
+    speed: 170,
+    weapon: 'drone',
+    ability: 'turret',
+    description:
+      'Watchdog and Sentry deployment. Every Watchdog rank carries one additional escort.',
+  },
+  {
+    id: 'vesper',
+    name: 'Vesper',
+    role: 'THE GHOST RUNNER',
+    icon: '»',
+    color: '#d9b8ff',
+    cost: 280,
+    hp: 85,
+    speed: 210,
+    weapon: 'scatter',
+    ability: 'freeze',
+    description:
+      'Cinder shotgun and Cryo field. Start with 15% critical chance and a four-second dash.',
+  },
+);
+export const ABILITIES = [
+  {
+    id: 'shockwave',
+    name: 'Shockwave',
+    icon: '✺',
+    cost: 0,
+    cooldown: 18,
+    description: 'Blast nearby infected and clear incoming projectiles.',
+  },
+  {
+    id: 'mend',
+    name: 'Field mend',
+    icon: '+',
+    cost: 160,
+    cooldown: 22,
+    description: 'Restore 35 health and gain two seconds of protection.',
+  },
+  {
+    id: 'surge',
+    name: 'Overclock',
+    icon: 'ϟ',
+    cost: 180,
+    cooldown: 24,
+    description:
+      'Eight seconds of faster fire and movement. Clear incoming shots on activation.',
+  },
+  {
+    id: 'freeze',
+    name: 'Cryo field',
+    icon: '❄',
+    cost: 200,
+    cooldown: 20,
+    description:
+      'Freeze nearby infected for four seconds and clear nearby projectiles.',
+  },
+  {
+    id: 'turret',
+    name: 'Sentry',
+    icon: '⌖',
+    cost: 240,
+    cooldown: 24,
+    description: 'Deploy a stationary automatic turret for twelve seconds.',
   },
 ];
 export const ZONES = [
@@ -121,6 +212,41 @@ Object.assign(WEAPONS, {
     description: 'Autonomous escorts fire at nearby threats.',
   },
 });
+Object.assign(WEAPONS, {
+  discus: {
+    name: 'Scrap discus',
+    icon: '◈',
+    color: '#c9e5ff',
+    description: 'Returning blades strike again on their way home.',
+  },
+  flame: {
+    name: 'Furnace',
+    icon: '♨',
+    color: '#ffc08a',
+    description: 'A short-range flame cone ignites everything in its path.',
+  },
+});
+export const FREE_WEAPONS = ['carbine', 'orbit', 'pulse'];
+export const LEGACY_WEAPONS = [
+  'carbine',
+  'arc',
+  'orbit',
+  'pulse',
+  'mine',
+  'scatter',
+  'drone',
+];
+export const WEAPON_COSTS = {
+  carbine: 0,
+  orbit: 0,
+  pulse: 0,
+  arc: 90,
+  mine: 100,
+  scatter: 140,
+  drone: 180,
+  discus: 240,
+  flame: 280,
+};
 export const EVOLUTIONS = {
   carbine: { mutation: 'pierce', name: 'Railstorm' },
   arc: { mutation: 'crit', name: 'Thunder God' },
@@ -129,6 +255,8 @@ export const EVOLUTIONS = {
   mine: { mutation: 'damage', name: 'Hellfire' },
   scatter: { mutation: 'multishot', name: 'Extinction' },
   drone: { mutation: 'rate', name: 'Wolfpack' },
+  discus: { mutation: 'speed', name: 'Reaper wheel' },
+  flame: { mutation: 'area', name: 'Solar wind' },
 };
 export const DIFFICULTIES = [
   {
@@ -393,7 +521,8 @@ export const UPGRADES = [
   {
     id: 'nova',
     name: 'Critical mass',
-    description: 'Shockwave deals 40% more damage and recharges faster.',
+    description:
+      'Active ability strength increases by 40% and recharges 15% faster.',
     icon: '✺',
     cap: 3,
     rarity: 'FIELD MOD',
@@ -441,6 +570,40 @@ export const RESEARCH = [
     cap: 4,
   },
 ];
+RESEARCH.push(
+  {
+    id: 'cooling',
+    name: 'Ability cooling',
+    icon: '❄',
+    description: 'Active ability cooldown reduced by 5% per rank.',
+    cost: 70,
+    cap: 4,
+  },
+  {
+    id: 'mobility',
+    name: 'Field conditioning',
+    icon: '»',
+    description: '+6 starting movement speed per rank.',
+    cost: 45,
+    cap: 5,
+  },
+  {
+    id: 'training',
+    name: 'Adaptation training',
+    icon: '∆',
+    description: '+10% starting experience gain per rank.',
+    cost: 65,
+    cap: 3,
+  },
+  {
+    id: 'logistics',
+    name: 'Bunker logistics',
+    icon: '↻',
+    description: '+1 upgrade reroll per rank.',
+    cost: 80,
+    cap: 3,
+  },
+);
 export const ENEMIES = {
   walker: {
     name: 'Hollow',
@@ -506,6 +669,44 @@ export const ENEMIES = {
     color: '#d0b277',
   },
 };
+Object.assign(ENEMIES, {
+  shield: {
+    name: 'Riot husk',
+    hp: 110,
+    speed: 48,
+    radius: 18,
+    damage: 16,
+    xp: 4,
+    color: '#b6bac0',
+  },
+  bomber: {
+    name: 'Cinder blister',
+    hp: 45,
+    speed: 88,
+    radius: 14,
+    damage: 28,
+    xp: 3,
+    color: '#ffad73',
+  },
+  burrower: {
+    name: 'Graveclaw',
+    hp: 85,
+    speed: 72,
+    radius: 16,
+    damage: 18,
+    xp: 4,
+    color: '#d4c3a4',
+  },
+  healer: {
+    name: 'Mycelial shepherd',
+    hp: 80,
+    speed: 44,
+    radius: 17,
+    damage: 10,
+    xp: 5,
+    color: '#a2e8ca',
+  },
+});
 export const BOSS_NAMES = [
   'The Groundskeeper',
   'Mother of Spores',
@@ -622,3 +823,14 @@ export const LORE = {
     'A nest pretending to be one creature. Its death is the beginning of the fight.',
   boss: 'Titans are the zone defending itself. Their attacks intensify as their health falls.',
 };
+
+Object.assign(LORE, {
+  shield:
+    'Old riot armor still remembers its purpose. Frontal basic rounds deal reduced damage. Piercing shots, lightning, saws and blasts bypass the shield.',
+  bomber:
+    'A walking reactor accident. It stops and flashes before detonating. Kill it first to turn its blast against nearby infected.',
+  burrower:
+    'It dives beneath the soil, then emerges at the marked circle. Buried Graveclaws cannot be hit. Move away from the warning.',
+  healer:
+    'A living field hospital for the infection. Its green pulse restores nearby infected. Bring it down before fighting the pack.',
+});

@@ -21,6 +21,7 @@ export default defineConfig({
           'art/characters.png',
           'art/terrain.png',
           'art/props.png',
+          'art/roster.png',
           ...Object.keys(bundle).filter((name) => name !== 'index.html'),
         ];
         const hash = createHash('sha256');
@@ -36,6 +37,7 @@ export default defineConfig({
           'art/characters.png',
           'art/terrain.png',
           'art/props.png',
+          'art/roster.png',
         ])
           hash.update(
             readFileSync(new URL(`./assets/${file}`, import.meta.url)),

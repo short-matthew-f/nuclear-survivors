@@ -4,15 +4,15 @@ A fullscreen, touch-first survival roguelite in a radioactive exclusion zone. Dr
 
 **[Play the game](https://short-matthew-f.github.io/nuclear-survivors/)**
 
-## Field edition 1.1
+## Field edition 1.2
 
 - Edge-to-edge Canvas gameplay with a compact HUD. No page header, footer, sidebar, or keyboard movement.
-- A floating analog thumbstick, multi-touch dash and shockwave abilities, automatic aiming, optional sound, and supported-device haptics.
-- Three operators: Nomad, Spark, and Bastion. Each has a distinct starting weapon and passive traits.
+- A floating analog thumbstick, multi-touch dash and selectable active abilities, automatic aiming, optional sound, and supported-device haptics.
+- Six heroes: Nomad, Spark, Bastion, Morrow, Rook, and Vesper. Each has a signature weapon, a default active ability, and distinct passive traits. Recruitment includes the signature weapon and ability.
 - Three unlockable sectors: Red Forest, The Drowned, and Dead Reactor, with different palettes, terrain decoration, atmosphere, and difficulty.
-- Seven weapon families: Cinder shotgun and Watchdog escort drones join the ballistic carbine, chain lightning, orbital saws, radiation bursts, and proximity mines. Each has five levels and a paired mutation that unlocks an evolution.
-- Twenty-one upgrades with a directed build path: each level prioritizes your focused weapon, a mutation/evolution key, and a new weapon when a slot is available. New operations carry up to four weapon families. Two rerolls per run. Existing larger arsenals and pending choices are preserved.
-- Six regular enemy behaviors: walkers, runners, brutes, ranged spitters, charging ravagers, and splitting brood.
+- Nine weapon families: Rustline carbine, Arc coil, Orbital saw, Rad bloom, Scorched earth mines, Cinder shotgun, Watchdog escorts, returning Scrap discus, and the Furnace flame cone. Each has five levels and a paired mutation that unlocks an evolution.
+- Twenty-three upgrades with a directed build path: each level prioritizes your focused weapon, a mutation/evolution key, and a new weapon when a slot is available. New operations carry up to four weapon families. Two rerolls per run. Existing larger arsenals and pending choices are preserved.
+- Ten regular enemy behaviors: shield-bearing riot husks, volatile bombers, telegraphed burrowers, and fungal healers join walkers, runners, brutes, ranged spitters, charging ravagers, and splitting brood.
 - Three titan encounters, with projectile rings, targeted spreads, summons, radiation formations, and faster attacks at low health.
 - Escalating hordes, telegraphed radiation hazards, medical supplies, salvage drops, supply caches, and boss relics.
 - Eight-minute extraction missions, endless survival, and a daily UTC seed with a fixed starting loadout and no bunker bonuses. Daily scores are local; there is no online leaderboard.
@@ -20,7 +20,8 @@ A fullscreen, touch-first survival roguelite in a radioactive exclusion zone. Dr
 - A five-chapter campaign with mission briefings, distinct required objectives, first-clear rewards, sector unlocks, and a story ending. Signals return until required rescues or relays are completed.
 - Optional survivor rescues, relay restoration, and elite-guarded convoys. Each has a timed signal, a proximity objective, and distinct rewards.
 - Elite enemies, temporary overdrive, shield and vacuum pickups, a field radar, and a one-time overtime commitment for four extra minutes and 75% bonus salvage.
-- Original illustrated key art, twelve character/titan sprites, eight environment props, and three painted ground textures. Source artwork and generation prompts are in `assets/art/`.
+- Original illustrated key art, nineteen hero/enemy/titan sprites plus a sentry sprite, eight environment props, and three painted ground textures. Source artwork and generation prompts are in `assets/art/`.
+- Five active abilities: Shockwave, Field mend, Overclock, Cryo field, and Sentry. Equip one alongside Dash. Abilities, weapon blueprints, and six heroes can be unlocked permanently with salvage. Eight research tracks improve later operations.
 - A procedural ambient score and weapon sounds, left-handed abilities, optional damage numbers and radar, and high/low rendering settings.
 - Local daily best-score archive and export/import backups with replacement confirmation.
 - Automatic run checkpoints and saved progression, with corrupted-save recovery.
@@ -50,7 +51,9 @@ No environment variables, credentials, accounts, fixtures, or server are require
 
 ## Controls and objectives
 
-Drag anywhere on the field to move; drag slightly for slower movement. Use another finger to tap **Dash** or **Shockwave**. The same drag controls work with a mouse. Weapons automatically aim at the nearest enemy. The pause button freezes play; switching away from the app also pauses. Escape can toggle pause on desktop, but movement is entirely pointer-based.
+Drag anywhere on the field to move; drag slightly for slower movement. Use another finger to tap **Dash** or your equipped active ability. Change that ability and your starting weapon per hero in the bunker. The same drag controls work with a mouse. Weapons automatically aim at the nearest enemy. The pause button freezes play; switching away from the app also pauses. Escape can toggle pause on desktop, but movement is entirely pointer-based.
+
+The bunker sells hero recruitment, weapon blueprints, active abilities, and permanent research. Weapon unlocks enter future operations’ level-up pools and can be equipped as a starting weapon. Recruitment grants its listed signature weapon and ability, usable by your other heroes too. Earlier saves retain all seven old weapons and recruited heroes receive their signature abilities; current saved operations keep their original Shockwave and weapon pool. New profiles begin with Rustline, Orbital saw, and Rad bloom.
 
 Green cores award experience. Pick one upgrade at each level. Weapon ranks change volley patterns, escort/blade counts, penetration, mine clusters, range, or firing cadence. Cards preview the exact next pattern and show the evolution key. Choosing a weapon makes it your focus for subsequent offers. Weapon upgrades reset their fire timer, and evolutions produce a visible transformation burst. Supply caches restore 15 health, award salvage, and pull cores closer. Medkits restore 35 health. Titan relics grant a bonus upgrade and salvage. Follow the on-field marker to extraction, an active field event, a boss relic, or a supply cache. Enter an event’s marked circle and hold there until its progress fills; convoys require clearing their elite guards first.
 
@@ -60,21 +63,23 @@ Titans arrive at **1:30**, **3:30**, and **6:30**. In extraction mode, the rescu
 
 Reach weapon level five and obtain at least one rank of its matching mutation:
 
-| Weapon           | Required mutation | Evolution                                              |
-| ---------------- | ----------------- | ------------------------------------------------------ |
-| Rustline carbine | Depleted uranium  | Railstorm: extra shots, faster fire, extra penetration |
-| Arc coil         | Deadeye           | Thunder God: more chain targets and faster strikes     |
-| Orbital saw      | Lead skin         | Death Halo: additional blades with faster rotation     |
-| Rad bloom        | Unstable isotope  | Supernova: larger, more frequent bursts                |
-| Scorched earth   | Hot rounds        | Hellfire: explosions leave burning ground              |
-| Cinder shotgun   | Split chamber     | Extinction: more pellets, penetration, and faster fire |
-| Watchdog         | Hair trigger      | Wolfpack: additional escorts with faster fire          |
+| Weapon           | Required mutation | Evolution                                                    |
+| ---------------- | ----------------- | ------------------------------------------------------------ |
+| Rustline carbine | Depleted uranium  | Railstorm: extra shots, faster fire, extra penetration       |
+| Arc coil         | Deadeye           | Thunder God: more chain targets and faster strikes           |
+| Orbital saw      | Lead skin         | Death Halo: additional blades with faster rotation           |
+| Rad bloom        | Unstable isotope  | Supernova: larger, more frequent bursts                      |
+| Scorched earth   | Hot rounds        | Hellfire: explosions leave burning ground                    |
+| Cinder shotgun   | Split chamber     | Extinction: more pellets, penetration, and faster fire       |
+| Scrap discus     | Adrenal glands    | Reaper wheel: additional returning blades and faster volleys |
+| Furnace          | Unstable isotope  | Solar wind: wider, longer, faster flame cones                |
+| Watchdog         | Hair trigger      | Wolfpack: additional escorts with faster fire                |
 
 ## Install and offline play
 
 On iPhone/iPad, open the published game in Safari, tap **Share → Add to Home Screen**. On Android, use the in-game Install button when available, or **Install app** from the browser menu. Installation and fullscreen behavior depend on the browser. The app requests fullscreen display with standalone fallback; the in-game Settings screen also offers the Fullscreen API where supported.
 
-The service worker precaches the production HTML, hashed JavaScript and CSS, manifest, icons, and all four artwork files. After a complete online load, the production game can launch offline. Service workers only register in production, so test this with `npm run build` followed by `npm run preview`. Localhost is a permitted development origin; deployed installs use HTTPS.
+The service worker precaches the production HTML, hashed JavaScript and CSS, manifest, icons, and all five artwork files. After a complete online load, the production game can launch offline. Service workers only register in production, so test this with `npm run build` followed by `npm run preview`. Localhost is a permitted development origin; deployed installs use HTTPS.
 
 New builds wait until activated by **Update** on the deployment screen or until all older app windows close. The worker retains the previous build’s assets to handle tabs crossing an update.
 
@@ -85,6 +90,8 @@ Progress lives in local browser storage on that device and origin. Runs checkpoi
 - `src/content.js`: operator, zone, weapon, upgrade, enemy, research, and achievement definitions.
 - `src/build.js`: shared weapon patterns, rank identities, upgrade previews, evolution paths, and weapon-slot limits.
 - `src/game.js`: browser-independent simulation, progression, abilities, AI, bosses, and extraction.
+- `src/abilities.js`: active abilities, temporary overclock, and deployable sentries.
+- `src/enemy-behavior.js`: encounter selection, shields, bomber warnings, burrowing, healing, freeze and burn status behavior.
 - `src/expedition.js`: field events, elite conversion, mission objectives, and overtime.
 - `src/art.js`: absolute artwork URLs shared by CSS and Canvas under the Pages project scope.
 - `src/audio.js`: procedural score and sound synthesis, unlocked by the first user gesture.

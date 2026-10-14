@@ -6,6 +6,11 @@ import {
   CHAPTERS,
   PERKS,
   ENEMIES,
+  WEAPONS,
+  WEAPON_COSTS,
+  FREE_WEAPONS,
+  LEGACY_WEAPONS,
+  ABILITIES,
 } from './content.js';
 import { missionReady } from './expedition.js';
 export const SAVE_KEY = 'nuclear-survivors-v2';
@@ -15,6 +20,9 @@ export function freshProfile() {
     scrap: 0,
     research: {},
     operators: ['nomad'],
+    weapons: [...FREE_WEAPONS],
+    abilities: ['shockwave'],
+    loadouts: {},
     zones: ['forest'],
     achievements: [],
     runs: 0,
@@ -58,6 +66,41 @@ export function parseProfile(raw) {
           : []),
       ]),
     ];
+    p.weapons = [
+      ...new Set([
+        ...FREE_WEAPONS,
+        ...(Object.hasOwn(data, 'weapons')
+          ? Array.isArray(data.weapons)
+            ? data.weapons.filter((id) => Object.hasOwn(WEAPONS, id))
+            : []
+          : LEGACY_WEAPONS),
+      ]),
+    ];
+    p.abilities = [
+      ...new Set([
+        'shockwave',
+        ...(Array.isArray(data.abilities)
+          ? data.abilities.filter((id) => ABILITIES.some((a) => a.id === id))
+          : []),
+      ]),
+    ];
+    for (const id of p.operators) {
+      const hero = OPERATORS.find((o) => o.id === id);
+      if (!p.weapons.includes(hero.weapon)) p.weapons.push(hero.weapon);
+      if (!p.abilities.includes(hero.ability)) p.abilities.push(hero.ability);
+    }
+    for (const id of p.operators) {
+      const record = data.loadouts?.[id];
+      if (record && typeof record === 'object')
+        p.loadouts[id] = {
+          weapon: p.weapons.includes(record.weapon)
+            ? record.weapon
+            : OPERATORS.find((o) => o.id === id).weapon,
+          ability: p.abilities.includes(record.ability)
+            ? record.ability
+            : OPERATORS.find((o) => o.id === id).ability,
+        };
+    }
     p.zones = [
       ...new Set([
         'forest',
@@ -136,7 +179,15 @@ export function purchase(profile, kind, id) {
         ? OPERATORS
         : kind === 'zone'
           ? ZONES
-          : [];
+          : kind === 'ability'
+            ? ABILITIES
+            : kind === 'weapon'
+              ? Object.entries(WEAPONS).map(([id, w]) => ({
+                  ...w,
+                  id,
+                  cost: WEAPON_COSTS[id],
+                }))
+              : [];
   const item = list.find((x) => x.id === id);
   if (!item) return false;
   const rank = profile.research[id] || 0;
@@ -144,10 +195,21 @@ export function purchase(profile, kind, id) {
   if (kind === 'research' && rank >= item.cap) return false;
   if (kind === 'operator' && profile.operators.includes(id)) return false;
   if (kind === 'zone' && profile.zones.includes(id)) return false;
+  if (kind === 'weapon' && profile.weapons.includes(id)) return false;
+  if (kind === 'ability' && profile.abilities.includes(id)) return false;
   if (profile.scrap < cost) return false;
   profile.scrap -= cost;
   if (kind === 'research') profile.research[id] = rank + 1;
-  else profile[kind === 'operator' ? 'operators' : 'zones'].push(id);
+  else if (kind === 'operator') {
+    profile.operators.push(id);
+    if (!profile.weapons.includes(item.weapon))
+      profile.weapons.push(item.weapon);
+    if (!profile.abilities.includes(item.ability))
+      profile.abilities.push(item.ability);
+  } else
+    profile[
+      { zone: 'zones', weapon: 'weapons', ability: 'abilities' }[kind]
+    ].push(id);
   return true;
 }
 export function settleRun(profile, game) {
@@ -246,4 +308,27 @@ export function importProfile(raw) {
   } catch {
     return null;
   }
+}
+
+export function loadoutFor(profile, operatorId) {
+  const hero = OPERATORS.find((o) => o.id === operatorId) || OPERATORS[0];
+  const saved = profile.loadouts[hero.id];
+  return {
+    weapon: saved?.weapon || hero.weapon,
+    ability: saved?.ability || hero.ability,
+  };
+}
+export function equipLoadout(profile, operatorId, kind, id) {
+  if (
+    !profile.operators.includes(operatorId) ||
+    !['weapon', 'ability'].includes(kind)
+  )
+    return false;
+  if (!profile[kind === 'weapon' ? 'weapons' : 'abilities'].includes(id))
+    return false;
+  profile.loadouts[operatorId] = {
+    ...loadoutFor(profile, operatorId),
+    [kind]: id,
+  };
+  return true;
 }

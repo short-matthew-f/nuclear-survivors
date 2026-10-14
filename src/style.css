@@ -2211,3 +2211,236 @@ label {
     font-size: 34px;
   }
 }
+
+/* Recruitment, blueprints, and per-hero starting loadouts. */
+.art-morrow,
+.art-rook,
+.art-vesper,
+.enemy-art-shield,
+.enemy-art-bomber,
+.enemy-art-burrower,
+.enemy-art-healer {
+  background-image: var(--roster);
+  background-size: 400% 200%;
+  filter: brightness(1.25) saturate(1.05);
+}
+.art-morrow {
+  background-position: 0 0;
+}
+.art-rook {
+  background-position: 33.333% 0;
+}
+.art-vesper {
+  background-position: 66.666% 0;
+}
+.enemy-art-shield {
+  background-position: 100% 0;
+}
+.enemy-art-bomber {
+  background-position: 0 100%;
+}
+.enemy-art-burrower {
+  background-position: 33.333% 100%;
+}
+.enemy-art-healer {
+  background-position: 66.666% 100%;
+}
+.selected-kit {
+  padding: 12px;
+  border-left: 2px solid #b9dca3;
+  background: #344b39;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+  font: 10px monospace;
+  margin-bottom: 18px;
+}
+.selected-kit span {
+  color: #d2e2c1;
+}
+.selected-kit .text-button {
+  margin-left: auto;
+  font-size: 8px;
+  min-height: 24px;
+  padding: 5px 0;
+}
+.bunker-loadout {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+  padding: 18px;
+  border-left: 3px solid var(--acid);
+  background: #304834;
+  margin: 24px 0;
+}
+.bunker-loadout strong {
+  color: #eff5d6;
+}
+.bunker-loadout span {
+  font: 11px monospace;
+  color: #d3dfbf;
+  flex: 1;
+}
+.bunker-loadout .text-button {
+  font-size: 9px;
+}
+.store-tabs {
+  display: flex;
+  gap: 5px;
+  margin: 25px 0;
+}
+.store-tabs button {
+  flex: 1;
+  padding: 15px 8px;
+  border: 1px solid #b8d39155;
+  background: #304332;
+  color: #d2e0c2;
+  font: 10px monospace;
+}
+.store-tabs button.selected {
+  background: #c6e993;
+  color: #203223;
+  border-color: #e4f5be;
+}
+.store-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.store-card {
+  display: flex;
+  flex-direction: column;
+  padding: 22px;
+  background: #304632;
+  border: 1px solid var(--line);
+}
+.store-card.selected {
+  border-color: #d4ec9f;
+  background: #3b5137;
+}
+.store-portrait.operator-art {
+  width: 100%;
+  max-width: 180px;
+  aspect-ratio: 1.12;
+  margin: 0 auto 18px;
+}
+.store-portrait.art-morrow,
+.store-portrait.art-rook,
+.store-portrait.art-vesper {
+  aspect-ratio: 1;
+}
+.store-card h2 {
+  font-size: 23px;
+  margin: 10px 0;
+}
+.store-card p {
+  color: #d0dcc0;
+  font-size: 12px;
+  line-height: 1.8;
+  flex: 1;
+}
+.store-card .eyebrow {
+  font-size: 8px;
+  letter-spacing: 1.5px;
+}
+.store-card .secondary {
+  width: 100%;
+  margin-top: 18px;
+  padding: 14px 10px;
+  font-size: 9px;
+  justify-content: center;
+}
+.store-includes {
+  font: 8px monospace;
+  line-height: 1.8;
+  color: #e2e9b9;
+  margin-top: 12px;
+}
+.store-symbol {
+  font: 44px monospace;
+  color: #cce5a8;
+  margin: 5px 0 20px;
+}
+@media (max-width: 700px) {
+  .store-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+  }
+  .store-card {
+    padding: 14px;
+  }
+  .store-card h2 {
+    font-size: 18px;
+  }
+  .store-card p {
+    font-size: 10px;
+    line-height: 1.7;
+  }
+  .store-card .eyebrow {
+    font-size: 6px;
+    letter-spacing: 1px;
+  }
+  .store-card .secondary {
+    font-size: 7px;
+    padding: 12px 6px;
+    letter-spacing: 0;
+  }
+  .store-includes {
+    font-size: 7px;
+  }
+  .store-symbol {
+    font-size: 34px;
+    margin-bottom: 15px;
+  }
+  .bunker-loadout {
+    gap: 8px;
+    padding: 14px;
+  }
+  .bunker-loadout span {
+    font-size: 9px;
+  }
+  .bunker-loadout .text-button {
+    font-size: 7px;
+  }
+  .store-tabs {
+    gap: 3px;
+    margin: 20px 0;
+  }
+  .store-tabs button {
+    font-size: 7px;
+    padding: 13px 3px;
+  }
+  .selected-kit {
+    font-size: 9px;
+  }
+  .ability small {
+    font-size: 6px;
+    letter-spacing: 0.2px;
+  }
+}
+.store-tabs {
+  position: sticky;
+  top: max(0px, env(safe-area-inset-top));
+  z-index: 2;
+  padding: 7px 0;
+  background: #263a2cf5;
+}
+.store-tabs button {
+  min-height: 44px;
+}
+.store-card .secondary:disabled {
+  opacity: 0.75;
+  background: #283b2b;
+  color: #d2dfbd;
+}
+@media (max-width: 700px) {
+  .store-tabs button {
+    font-size: 8px;
+  }
+  .store-card .secondary {
+    font-size: 8px;
+    min-height: 44px;
+  }
+}

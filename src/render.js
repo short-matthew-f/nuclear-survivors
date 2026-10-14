@@ -24,7 +24,8 @@ export function createRenderer(canvas) {
   const ctx = canvas.getContext('2d', { alpha: false });
   const atlas = new Image(),
     terrain = new Image(),
-    props = new Image();
+    props = new Image(),
+    roster = new Image();
   atlas.src = artUrl(
     'characters.png',
     import.meta.env.BASE_URL,
@@ -36,9 +37,11 @@ export function createRenderer(canvas) {
     import.meta.env.BASE_URL,
     document.baseURI,
   );
+  roster.src = artUrl('roster.png', import.meta.env.BASE_URL, document.baseURI);
   const patterns = {};
   let litCharacters = null,
-    litProps = null;
+    litProps = null,
+    litRoster = null;
   // Bake exposure once instead of applying expensive filters to every enemy each frame.
   // Pixel adjustment also works on iOS versions without Canvas filter support.
   function expose(image, multiplier) {
@@ -60,6 +63,9 @@ export function createRenderer(canvas) {
   }
   atlas.onload = () => {
     litCharacters = expose(atlas, 1.65);
+  };
+  roster.onload = () => {
+    litRoster = expose(roster, 1.25);
   };
   props.onload = () => {
     litProps = expose(props, 1.25);
@@ -102,11 +108,12 @@ export function createRenderer(canvas) {
     );
     return true;
   }
-  function sprite(index, size, step = 0) {
-    if (!atlas.complete || !atlas.naturalWidth) return false;
-    const source = litCharacters || atlas;
+  function sprite(index, size, step = 0, expanded = false) {
+    const original = expanded ? roster : atlas;
+    if (!original.complete || !original.naturalWidth) return false;
+    const source = expanded ? litRoster || roster : litCharacters || atlas;
     const sw = source.width / 4,
-      sh = source.height / 3;
+      sh = source.height / (expanded ? 2 : 3);
     ctx.save();
     ctx.translate(0, Math.sin(step) * 1.4);
     ctx.drawImage(
@@ -487,6 +494,30 @@ export function createRenderer(canvas) {
         Math.abs(e.y - camera.y) > worldHeight / 2 + 60
       )
         continue;
+      if (e.burrowLeft > 0) {
+        circle(ctx, e.x, e.y, 30, '#473b2d88');
+        ring(ctx, e.x, e.y, 36, '#f5d4aa', 2);
+        ring(ctx, e.x, e.y, 20 + Math.sin(ambient * 8) * 4, '#e8bc87', 2);
+        ctx.fillStyle = '#ffdfb7';
+        ctx.font = 'bold 14px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('!', e.x, e.y + 5);
+        continue;
+      }
+      if (e.detonate > 0) {
+        circle(ctx, e.x, e.y, 95, '#ff9c631a');
+        ring(ctx, e.x, e.y, 95, '#ffb184', 2);
+      }
+      if (e.frozen > 0) ring(ctx, e.x, e.y, e.radius + 7, '#a2efff', 3);
+      if (e.burnLeft > 0)
+        for (let i = 0; i < 3; i++)
+          circle(
+            ctx,
+            e.x + Math.cos(ambient * 8 + i * 2) * e.radius,
+            e.y + Math.sin(ambient * 8 + i * 2) * e.radius,
+            3,
+            '#ffd18a',
+          );
       if (e.hit) ring(ctx, e.x, e.y, e.radius + 3, '#f5edbd', 2);
       if (e.elite) ring(ctx, e.x, e.y, e.radius + 11, '#f5c276', 2);
       circle(ctx, e.x + 3, e.y + 7, e.radius + 2, '#111b23aa');
@@ -502,8 +533,12 @@ export function createRenderer(canvas) {
       ctx.translate(e.x, e.y);
       ctx.rotate(Math.atan2(p.y - e.y, p.x - e.x));
       const color = e.hit ? '#f3f1cf' : e.color;
+      const expansionIndex = { shield: 3, bomber: 4, burrower: 5, healer: 6 }[
+        e.type
+      ];
       const index =
-        e.type === 'boss'
+        expansionIndex ??
+        (e.type === 'boss'
           ? 9 + (e.phase % 3)
           : {
               walker: 3,
@@ -512,13 +547,14 @@ export function createRenderer(canvas) {
               spitter: 6,
               charger: 7,
               splitter: 8,
-            }[e.type];
+            }[e.type]);
       if (e.hit) ctx.globalAlpha = 0.72;
       if (
         !sprite(
           index,
           e.radius * (e.type === 'boss' ? 3.3 : 3.1),
           ambient * (e.type === 'runner' ? 15 : 8) + e.id,
+          expansionIndex !== undefined,
         )
       ) {
         if (e.type === 'boss') {
@@ -571,6 +607,10 @@ export function createRenderer(canvas) {
           e.type === 'boss' ? '#fff0b1' : '#edeca4',
         );
       }
+      if (e.type === 'shield') {
+        ctx.fillStyle = '#d2c19e';
+        ctx.fillRect(e.radius - 3, -16, 5, 32);
+      }
       ctx.globalAlpha = 1;
       ctx.restore();
       if (e.hp < e.maxHp && e.type !== 'boss') {
@@ -581,6 +621,18 @@ export function createRenderer(canvas) {
       }
     }
     for (const b of g.bullets) {
+      if (b.kind === 'discus') {
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(ambient * 18);
+        circle(ctx, 0, 0, 9, '#33465c');
+        ring(ctx, 0, 0, 10, b.color, 2);
+        ctx.fillStyle = b.color;
+        ctx.fillRect(-13, -2, 26, 4);
+        ctx.fillRect(-2, -13, 4, 26);
+        ctx.restore();
+        continue;
+      }
       ctx.strokeStyle = b.color;
       ctx.lineWidth = b.width || 2.5;
       ctx.beginPath();
@@ -614,7 +666,18 @@ export function createRenderer(canvas) {
     }
     for (const e of g.effects) {
       ctx.globalAlpha = Math.max(0, e.life / e.maxLife);
-      if (e.kind === 'ring') {
+      if (e.kind === 'cone') {
+        ctx.globalAlpha *= 0.45;
+        ctx.fillStyle = e.color;
+        ctx.strokeStyle = e.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(e.x, e.y);
+        ctx.arc(e.x, e.y, e.radius, e.angle - e.half, e.angle + e.half);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else if (e.kind === 'ring') {
         const t = 1 - e.life / e.maxLife;
         circle(ctx, e.x, e.y, e.radius * t, `${e.color}10`);
         ring(ctx, e.x, e.y, e.radius * t, e.color, 3 * (1 - t) + 1);
@@ -635,6 +698,18 @@ export function createRenderer(canvas) {
       circle(ctx, s.x, s.y, 2, s.color);
     }
     ctx.globalAlpha = 1;
+    for (const t of g.turrets) {
+      ctx.save();
+      ctx.translate(t.x, t.y);
+      ctx.rotate(t.angle);
+      if (!sprite(7, 58, 0, true)) {
+        circle(ctx, 0, 0, 15, '#aacbdf');
+        ctx.fillStyle = '#eac383';
+        ctx.fillRect(0, -4, 27, 8);
+      }
+      ctx.restore();
+      ring(ctx, t.x, t.y, 26, '#a8d7ff66');
+    }
     if (p.invulnerable <= 0 || Math.floor(p.invulnerable * 18) % 2) {
       circle(ctx, p.x + 2, p.y + 8, 17, '#09130c88');
       circle(ctx, p.x, p.y, 25, '#101c25cc');
@@ -644,9 +719,12 @@ export function createRenderer(canvas) {
       ctx.rotate(p.angle);
       if (
         !sprite(
-          { nomad: 0, spark: 1, bastion: 2 }[g.operator.id],
+          { nomad: 0, spark: 1, bastion: 2, morrow: 0, rook: 1, vesper: 2 }[
+            g.operator.id
+          ],
           66,
           g.distance / 9,
+          ['morrow', 'rook', 'vesper'].includes(g.operator.id),
         )
       ) {
         ctx.fillStyle = '#4b5a43';
