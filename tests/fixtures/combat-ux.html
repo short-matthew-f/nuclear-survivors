@@ -172,6 +172,7 @@
       <button data-scene="upgrade">Upgrade</button
       ><button data-scene="relic">Relic</button
       ><button data-scene="busy">Busy field</button
+      ><button data-scene="extract">Extraction</button
       ><button data-scene="defeat">Defeat</button
       ><button id="fixture-mirror">Mirror hands</button
       ><button id="fixture-thumbs">Thumb masks</button
@@ -267,14 +268,21 @@
         }));
         beginEvent(g, 'rescue');
         const overlay = document.querySelector('#overlay');
-        overlay.hidden = scene === 'busy';
+        overlay.hidden = ['busy', 'extract'].includes(scene);
         overlay.className =
           scene === 'defeat' ? 'overlay ux-overlay' : 'overlay combat-overlay';
-        document.querySelector('#hud').hidden = scene !== 'busy';
+        document.querySelector('#hud').hidden = !['busy', 'extract'].includes(
+          scene,
+        );
         document.querySelector('#touch-hint').hidden = true;
         document.querySelector('#phase').textContent = 'Rescue 04:00';
         document.querySelector('#timer').textContent = '04:00';
         document.querySelector('#level').textContent = `LV ${g.level}`;
+        if (scene === 'extract') {
+          g.extraction = { x: 0, y: 0, radius: 100 };
+          g.extractProgress = 4;
+          document.querySelector('#extract-hud').hidden = false;
+        }
         const objective = primaryObjective(g);
         document.querySelector('#combat-objective').hidden = false;
         document.querySelector('#combat-objective-title').textContent =
@@ -316,7 +324,7 @@
       };
       load(new URLSearchParams(location.search).get('scene') || 'upgrade');
       function frame() {
-        if (scene === 'busy') radar(g);
+        if (['busy', 'extract'].includes(scene)) radar(g);
         renderer.render(
           g,
           { quality: 'high', numbers: true, shake: false },

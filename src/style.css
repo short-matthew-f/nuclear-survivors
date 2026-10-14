@@ -4588,3 +4588,8 @@ label {
     max-width: min(260px, calc(50% - 64px));
   }
 }
+/* Extraction already has a percentage and progress bar in the primary objective.
+   Keep the lower control row free rather than duplicating it between the thumbs. */
+#extract-hud {
+  display: none;
+}
