@@ -132,3 +132,5 @@ Bunker → Unlocks shows requirements, saved progress, rewards, and the alternat
 | Cryo field                           | Defeat 20 Graveclaws across operations      |
 
 Design research and rationale: [docs/unlock-design.md](docs/unlock-design.md). `src/unlocks.js` owns the shared definitions, reward bundles, progress migration, and settlement rules.
+
+Menu selections, equipment changes, purchases, and settings retain the current scroll position. Opening another screen or Bunker category starts at the top. Menu DOM replacement is owned by `src/menu.js`; regression tests are in `tests/menu.test.js`.
