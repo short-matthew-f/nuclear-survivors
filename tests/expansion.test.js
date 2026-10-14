@@ -74,7 +74,7 @@ test('bosses arrive at distinct milestone times and death drops a relic', () => 
   assert.equal(g.bossIndex, 2);
   assert.ok(g.enemies.some((e) => e.name === 'Mother of Spores'));
 });
-test('endless bosses fire valid projectile rings beyond the third boss', () => {
+test('endless titans telegraph valid charges beyond the third boss', () => {
   const g = running({ mode: 'endless' });
   g.time = 480;
   g.bossIndex = 3;
@@ -83,7 +83,10 @@ test('endless bosses fire valid projectile rings beyond the third boss', () => {
   assert.ok(boss);
   boss.attack = 0;
   update(g, 0.01);
-  assert.ok(g.hostile.length >= 10);
+  assert.equal(boss.telegraph.kind, 'charge');
+  for (let i = 0; i < 23; i++) update(g, 0.05);
+  assert.ok(boss.charge > 0);
+  assert.ok(Number.isFinite(boss.vx));
   assert.equal(g.extraction, null);
 });
 test('splitters produce three smaller runners exactly once', () => {
@@ -303,6 +306,8 @@ test('spore titan summons runners and reactor titan creates a hazard formation',
     e.phase = phase;
     e.attack = 0;
     update(g, 0.05);
+    assert.ok(e.telegraph);
+    for (let i = 0; i < 29; i++) update(g, 0.05);
     if (phase === 1)
       assert.equal(g.enemies.filter((e) => e.type === 'runner').length, 2);
     else assert.ok(g.hazards.length >= 3);

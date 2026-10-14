@@ -51,6 +51,15 @@ import { createRenderer } from './render.js';
 import { commitOvertime, missionGoals, missionReady } from './expedition.js';
 import { abilityFor } from './abilities.js';
 import { createAudio } from './audio.js';
+import {
+  HERO_MASTERY,
+  masteryTier,
+  equipHeroStyle,
+  branchForGame,
+  abilityCooldown,
+} from './mastery.js';
+import { RELICS, applyRelic } from './relics.js';
+import { eventInstruction } from './expedition.js';
 import { createMenuRenderer } from './menu.js';
 import { CHECKPOINT_KEY, serializeRun, restoreRun } from './checkpoint.js';
 
@@ -177,6 +186,8 @@ function start() {
       weapon: daily ? 'carbine' : loadoutFor(profile, operator).weapon,
       ability: daily ? 'shockwave' : loadoutFor(profile, operator).ability,
       allowedWeapons: daily ? LEGACY_WEAPONS : profile.weapons,
+      branch: daily ? 'standard' : profile.heroStyles[operator]?.branch,
+      outfit: daily ? 'field' : profile.heroStyles[operator]?.outfit,
       difficulty: daily
         ? 'survivor'
         : chapter
@@ -446,6 +457,7 @@ $('overlay').addEventListener('click', async (e) => {
       [
         'unlocks',
         'heroes',
+        'mastery',
         'weapons',
         'abilities',
         'research',
@@ -454,6 +466,28 @@ $('overlay').addEventListener('click', async (e) => {
     ) {
       shopTab = value;
       menu('workshop');
+    }
+  } else if (act === 'mastery-hero' && profile.operators.includes(value)) {
+    operator = value;
+    menu('workshop');
+  } else if (act === 'branch' || act === 'outfit') {
+    if (equipHeroStyle(profile, operator, act, value)) {
+      if (act === 'branch')
+        equipLoadout(
+          profile,
+          operator,
+          'ability',
+          OPERATORS.find((o) => o.id === operator).ability,
+        );
+      save();
+      menu('workshop');
+    }
+  } else if (act === 'relic') {
+    if (applyRelic(game, value)) {
+      checkpoint();
+      overlayStamp = '';
+      renderUI();
+      tone(820, 0.2);
     }
   } else if (act === 'recruit') {
     if (
@@ -535,7 +569,7 @@ $('overlay').addEventListener('click', async (e) => {
 function homeScreen() {
   const o = OPERATORS.find((o) => o.id === operator),
     z = ZONES.find((z) => z.id === zone);
-  return `<div class="home"><div class="home-main"><div class="brand-mark">☢ <small>FIELD BUILD 1.3.1</small></div>${heading('A SURVIVAL ROGUELITE', 'NUCLEAR<br><em>SURVIVORS.</em>', 'The world ended. Your shift didn’t.')}<div class="home-actions">${savedRun ? action(`RESUME ${formatTime(savedRun.time)} OPERATION <span>↗</span>`, 'restore') + action('NEW OPERATION', 'start', 'secondary') : action('ENTER THE ZONE <span>↗</span>', 'start')}${action('THE BUNKER <span>◈</span>', 'workshop', 'secondary')}</div><div class="home-links">${action('FIELD GUIDE', 'guide', 'text-button')}${action('CODEX', 'codex', 'text-button')}${action('RUN ARCHIVE', 'records', 'text-button')}${action('SETTINGS', 'settings', 'text-button')}</div><div class="install-row">${action('⊕ INSTALL GAME', 'install', 'text-button')}<span>TOUCH TO MOVE · AUTO COMBAT</span></div></div><div class="deployment-panel"><div class="panel-heading"><span>PREPARE TO DEPLOY</span><span class="currency">◈ ${profile.scrap}</span></div><label>01 / OPERATOR</label><div class="operator-options">${OPERATORS.map((item) => `<button class="operator-option ${operator === item.id ? 'selected' : ''}" data-action="operator" data-value="${item.id}" aria-pressed="${operator === item.id}"><span class="operator-art art-${item.id}" aria-hidden="true"></span><strong>${item.name}</strong><small>${profile.operators.includes(item.id) ? item.role : `◈ ${item.cost} TO RECRUIT`}</small></button>`).join('')}</div><p class="selection-description">${o.description}</p><div class="selected-kit"><strong>${WEAPONS[loadoutFor(profile, operator).weapon].name}</strong><span>+ ${ABILITIES.find((a) => a.id === loadoutFor(profile, operator).ability).name}</span>${action('CHANGE LOADOUT ↗', 'workshop', 'text-button')}</div><label>02 / DROP ZONE</label><div class="zone-options">${ZONES.map((item) => `<button class="zone-option ${zone === item.id ? 'selected' : ''}" data-action="zone" data-value="${item.id}" aria-pressed="${zone === item.id}"><span class="zone-swatch ${item.id}"></span><span><strong>${item.name}</strong><small>${profile.zones.includes(item.id) ? item.label : `LOCKED · ◈ ${item.cost}`}</small></span><b>${zone === item.id ? '↗' : '+'}</b></button>`).join('')}</div><label>03 / OPERATION</label><div class="mode-options">${[
+  return `<div class="home"><div class="home-main"><div class="brand-mark">☢ <small>FIELD BUILD 1.4</small></div>${heading('A SURVIVAL ROGUELITE', 'NUCLEAR<br><em>SURVIVORS.</em>', 'The world ended. Your shift didn’t.')}<div class="home-actions">${savedRun ? action(`RESUME ${formatTime(savedRun.time)} OPERATION <span>↗</span>`, 'restore') + action('NEW OPERATION', 'start', 'secondary') : action('ENTER THE ZONE <span>↗</span>', 'start')}${action('THE BUNKER <span>◈</span>', 'workshop', 'secondary')}</div><div class="home-links">${action('FIELD GUIDE', 'guide', 'text-button')}${action('CODEX', 'codex', 'text-button')}${action('RUN ARCHIVE', 'records', 'text-button')}${action('SETTINGS', 'settings', 'text-button')}</div><div class="install-row">${action('⊕ INSTALL GAME', 'install', 'text-button')}<span>TOUCH TO MOVE · AUTO COMBAT</span></div></div><div class="deployment-panel"><div class="panel-heading"><span>PREPARE TO DEPLOY</span><span class="currency">◈ ${profile.scrap}</span></div><label>01 / OPERATOR</label><div class="operator-options">${OPERATORS.map((item) => `<button class="operator-option ${operator === item.id ? 'selected' : ''}" data-action="operator" data-value="${item.id}" aria-pressed="${operator === item.id}"><span class="operator-art art-${item.id}" aria-hidden="true"></span><strong>${item.name}</strong><small>${profile.operators.includes(item.id) ? item.role : `◈ ${item.cost} TO RECRUIT`}</small></button>`).join('')}</div><p class="selection-description">${o.description}</p><div class="selected-kit"><strong>${WEAPONS[loadoutFor(profile, operator).weapon].name}</strong><span>+ ${ABILITIES.find((a) => a.id === loadoutFor(profile, operator).ability).name}</span>${action('CHANGE LOADOUT ↗', 'workshop', 'text-button')}</div><label>02 / DROP ZONE</label><div class="zone-options">${ZONES.map((item) => `<button class="zone-option ${zone === item.id ? 'selected' : ''}" data-action="zone" data-value="${item.id}" aria-pressed="${zone === item.id}"><span class="zone-swatch ${item.id}"></span><span><strong>${item.name}</strong><small>${profile.zones.includes(item.id) ? item.label : `LOCKED · ◈ ${item.cost}`}</small></span><b>${zone === item.id ? '↗' : '+'}</b></button>`).join('')}</div><label>03 / OPERATION</label><div class="mode-options">${[
     ['campaign', 'STORY'],
     ['extraction', 'EXTRACT'],
     ['endless', 'ENDLESS'],
@@ -551,7 +585,7 @@ function homeScreen() {
     )
     .join(
       '',
-    )}</div><p class="selection-description">${mode === 'campaign' ? `Five chapters. A world worth saving. ${profile.chapters.length} / ${CHAPTERS.length} complete.` : mode === 'daily' ? 'A shared daily seed. Nomad. Red Forest. No bunker bonuses. Local scores only.' : mode === 'endless' ? 'No rescue is coming. Survive as long as you can.' : 'Eight minutes. Three titans. Hold the extraction beacon to get home.'}</p>${mode !== 'daily' && mode !== 'campaign' ? `<label>04 / THREAT LEVEL</label><div class="difficulty-options">${DIFFICULTIES.map((d) => action(d.name, 'difficulty', difficulty === d.id ? 'selected' : '', `data-value="${d.id}" ${d.id === 'veteran' && !profile.wins ? 'disabled' : ''}`)).join('')}</div><p class="selection-description">${DIFFICULTIES.find((d) => d.id === difficulty).description}</p>` : ''}<div class="sector-note"><i></i>${z.subtitle}<span>BUILD 1.3.1</span></div></div></div>`;
+    )}</div><p class="selection-description">${mode === 'campaign' ? `Five chapters. A world worth saving. ${profile.chapters.length} / ${CHAPTERS.length} complete.` : mode === 'daily' ? 'A shared daily seed. Nomad. Red Forest. No bunker bonuses. Local scores only.' : mode === 'endless' ? 'No rescue is coming. Survive as long as you can.' : 'Eight minutes. Three titans. Hold the extraction beacon to get home.'}</p>${mode !== 'daily' && mode !== 'campaign' ? `<label>04 / THREAT LEVEL</label><div class="difficulty-options">${DIFFICULTIES.map((d) => action(d.name, 'difficulty', difficulty === d.id ? 'selected' : '', `data-value="${d.id}" ${d.id === 'veteran' && !profile.wins ? 'disabled' : ''}`)).join('')}</div><p class="selection-description">${DIFFICULTIES.find((d) => d.id === difficulty).description}</p>` : ''}<div class="sector-note"><i></i>${z.subtitle}<span>BUILD 1.4</span></div></div></div>`;
 }
 function campaignScreen() {
   const chapter = CHAPTERS.find((c) => c.id === chapterId) || CHAPTERS[0];
@@ -577,12 +611,12 @@ function codexScreen() {
     )
     .join(
       '',
-    )}</div><div class="section-label">SIGNALS WORTH FOLLOWING</div><div class="guide-grid">${Object.values(
+    )}</div><div class="section-label">RARE FIELD RELICS</div><div class="guide-grid">${RELICS.map((r) => `<article><span>${r.icon}</span><h2>${r.name}</h2><p>${r.description}</p></article>`).join('')}</div><div class="section-label">SIGNALS WORTH FOLLOWING</div><div class="guide-grid">${Object.values(
     FIELD_EVENTS,
   )
     .map(
       (e) =>
-        `<article><span>${e.icon}</span><h2>${e.name}</h2><p>${e.instruction}. Stay within the marked circle for ${e.duration} seconds. Earn ${e.reward} salvage plus supplies. Signals expire after 80 seconds.</p></article>`,
+        `<article><span>${e.icon}</span><h2>${e.name}</h2><p>${e.instruction}. ${e.duration} seconds of objective progress. Earn ${e.reward} salvage plus supplies. Escort, shutdown and defense signals last 100 seconds; other signals last 80 seconds.</p></article>`,
     )
     .join(
       '',
@@ -606,12 +640,67 @@ function unlocksScreen() {
     })
     .join('')}</div>`;
 }
+function masteryScreen() {
+  const hero = OPERATORS.find((o) => o.id === operator),
+    spec = HERO_MASTERY[operator],
+    record = profile.mastery[operator] || { best: 0, casts: 0, wins: 0 },
+    tier = masteryTier(record),
+    style = profile.heroStyles[operator] || {
+      branch: 'standard',
+      outfit: 'field',
+    };
+  const milestones = [
+    [
+      'FIELDCRAFT',
+      Math.min(120, record.best),
+      120,
+      `Survive 2 minutes as ${hero.name}. Earn ${spec.branches[0].name} and ${WEAPONS[spec.weapon].name}.`,
+    ],
+    [
+      'SIGNATURE DISCIPLINE',
+      Math.min(8, record.casts),
+      8,
+      `Use ${ABILITIES.find((a) => a.id === hero.ability).name} 8 times across operations, plus Fieldcraft. Earn ${spec.branches[1].name}.`,
+    ],
+    [
+      'VETERAN',
+      Math.min(1, record.wins),
+      1,
+      `Extract alive as ${hero.name}. Earn the Veteran outfit.`,
+    ],
+  ];
+  return `<div class="mastery-heroes">${OPERATORS.filter((o) =>
+    profile.operators.includes(o.id),
+  )
+    .map((o) =>
+      action(
+        o.name,
+        'mastery-hero',
+        o.id === operator ? 'selected' : 'secondary',
+        `data-value="${o.id}" aria-pressed="${o.id === operator}"`,
+      ),
+    )
+    .join(
+      '',
+    )}</div><div class="mastery-intro"><div class="store-portrait operator-art art-${operator} ${style.outfit === 'veteran' ? 'veteran-outfit' : ''}" aria-hidden="true"></div><div><div class="eyebrow">${hero.role} · MASTERY ${tier}/2</div><h2>${hero.name}</h2><p>Progress is banked after every operation, even on defeat. Branches modify this hero’s signature ability. Selecting a branch equips that ability.</p></div></div><div class="mastery-goals">${milestones.map(([name, value, max, text]) => `<article><strong>${name}</strong><p>${text}</p><progress value="${value}" max="${max}" aria-label="${name} mastery progress"></progress><small>${value}/${max}${name === 'FIELDCRAFT' ? ' SECONDS' : ''}</small></article>`).join('')}</div><div class="section-label">SIGNATURE ABILITY BRANCH</div><div class="store-grid">${[{ id: 'standard', name: 'Standard', tier: 0, description: ABILITIES.find((a) => a.id === hero.ability).description }, ...spec.branches].map((b) => `<article class="store-card ${style.branch === b.id ? 'selected' : ''}"><div class="eyebrow">${b.tier === 0 ? 'DEFAULT' : b.tier === 1 ? 'FIELDCRAFT REWARD' : 'SIGNATURE DISCIPLINE REWARD'}</div><h2>${b.name}</h2><p>${b.description}</p>${action(style.branch === b.id ? 'EQUIPPED' : tier >= b.tier ? 'EQUIP BRANCH ↗' : 'MASTERY REQUIRED', 'branch', 'secondary', `data-value="${b.id}" ${style.branch === b.id || tier < b.tier ? 'disabled' : ''}`)}</article>`).join('')}</div><div class="section-label">OUTFIT · COSMETIC ONLY</div><div class="mastery-heroes">${action('FIELD', 'outfit', style.outfit === 'field' ? 'selected' : 'secondary', `data-value="field"`)}${action(record.wins ? 'VETERAN · EMBER CAPE' : 'VETERAN · EXTRACT TO EARN', 'outfit', style.outfit === 'veteran' ? 'selected' : 'secondary', `data-value="veteran" ${record.wins ? '' : 'disabled'}`)}</div><p class="subtle">Daily challenges use standard abilities and field outfits. Recruit more heroes to unlock their mastery paths.</p>`;
+}
+function relicScreen() {
+  return `<div class="upgrade-page">${heading('RARE FIELD RELIC', 'CHANGE THE RULES.', 'Choose one permanent effect for this operation. Relics do not occupy weapon slots.')}<div class="choices">${game.relicChoices
+    .map((id) => {
+      const r = RELICS.find((r) => r.id === id);
+      return `<button class="choice relic-card" data-action="relic" data-value="${id}"><span class="choice-icon" style="color:${r.color}">${r.icon}</span><div class="eyebrow">RARE RELIC</div><h2>${r.name}</h2><p>${r.description}</p><div class="choice-bottom">INSTALL RELIC <b>↗</b></div></button>`;
+    })
+    .join(
+      '',
+    )}</div><p class="subtle">${game.relics.length} / ${RELICS.length} relics installed · operation paused</p></div>`;
+}
 function workshopScreen() {
   const loadout = loadoutFor(profile, operator),
     hero = OPERATORS.find((o) => o.id === operator);
   const tabs = [
     ['unlocks', 'UNLOCKS'],
     ['heroes', 'HEROES'],
+    ['mastery', 'MASTERY'],
     ['weapons', 'WEAPONS'],
     ['abilities', 'ABILITIES'],
     ['research', 'RESEARCH'],
@@ -619,6 +708,7 @@ function workshopScreen() {
   ];
   let content = '';
   if (shopTab === 'unlocks') content = unlocksScreen();
+  if (shopTab === 'mastery') content = masteryScreen();
   if (shopTab === 'heroes')
     content = `<div class="store-grid">${OPERATORS.map((o) => {
       const owned = profile.operators.includes(o.id);
@@ -729,7 +819,16 @@ function pauseScreen() {
     )
     .join(
       '',
-    )}</div><div class="section-label">ACTIVE BOUNTIES</div><div class="pause-contracts"><span>${Math.min(100, game.kills)} / 100 INFECTED</span><span>${Math.min(3, game.crates)} / 3 CACHES</span><span>${Math.min(1, game.bossKills)} / 1 TITAN</span></div></div>`;
+    )}</div><div class="section-label">SIGNATURE ABILITY · ${branchForGame(game)?.name || abilityFor(game).name}</div>${
+    game.relics.length
+      ? `<div class="section-label">INSTALLED RELICS</div><div class="run-relics">${game.relics
+          .map((id) => {
+            const r = RELICS.find((r) => r.id === id);
+            return `<article><strong>${r.icon} ${r.name}</strong><p>${r.description}</p></article>`;
+          })
+          .join('')}</div>`
+      : ''
+  }<div class="section-label">ACTIVE BOUNTIES</div><div class="pause-contracts"><span>${Math.min(100, game.kills)} / 100 INFECTED</span><span>${Math.min(3, game.crates)} / 3 CACHES</span><span>${Math.min(1, game.bossKills)} / 1 TITAN</span></div></div>`;
 }
 function upgradeScreen() {
   const focus = game.weapons[game.focusWeapon]
@@ -759,7 +858,7 @@ function endScreen() {
     chapterId =
       CHAPTERS.find((c) => !profile.chapters.includes(c.id))?.id ||
       completed.id;
-  return `<div class="end-page"><div class="end-icon">${won ? '✦' : '☢'}</div>${heading(won ? 'EXTRACTION CONFIRMED' : 'OPERATOR SIGNAL LOST', won ? 'ANOTHER<br><em>SUNRISE.</em>' : 'THE ZONE<br><em>REMEMBERS.</em>', won ? 'You brought yourself home. That’s enough for today.' : 'Every run leaves something behind. Make it count.')}<div class="record-stats"><div><strong>${formatTime(game.time)}</strong><span>SURVIVED</span></div><div><strong>${game.kills}</strong><span>INFECTED</span></div><div><strong>${game.bossKills}</strong><span>TITANS</span></div><div><strong>${game.level}</strong><span>LEVEL</span></div></div><div class="salvage-earned"><span>SALVAGE RECOVERED</span><strong>+${result?.earned || 0} ◈</strong></div>${result?.unlocked.length ? `<div class="unlocked">${result.unlocked.map((a) => `<span>✦ ${a.name} <b>+${a.reward} ◈</b></span>`).join('')}</div>` : ''}${result?.fieldUnlocks?.length ? `<div class="field-rewards"><div class="eyebrow">NEW FIELD UNLOCKS · FREE</div>${result.fieldUnlocks.map((r) => `<p><strong>${r.name}</strong><span>${r.kind === 'operator' ? 'HERO + SIGNATURE GEAR' : r.kind.toUpperCase()}</span></p>`).join('')}</div>` : ''}${completed ? `<article class="chapter-debrief"><div class="eyebrow">CHAPTER COMPLETE · +${completed.reward} SALVAGE</div><h2>${completed.title}</h2><p>${completed.debrief}</p>${profile.chapters.length === CHAPTERS.length ? '<strong>CAMPAIGN COMPLETE · THANK YOU FOR PLAYING</strong>' : ''}</article>` : ''}<div class="run-summary"><span>${game.eventsCompleted} EVENTS</span><span>${game.eliteKills} ELITES</span><span>${Math.round(game.damageDealt).toLocaleString()} DAMAGE</span></div><div class="end-actions">${action(completed ? 'CONTINUE STORY ↗' : 'ONE MORE RUN ↗', 'start')}${action('VIEW BUNKER UNLOCKS', 'workshop', 'secondary')}</div></div>`;
+  return `<div class="end-page"><div class="end-icon">${won ? '✦' : '☢'}</div>${heading(won ? 'EXTRACTION CONFIRMED' : 'OPERATOR SIGNAL LOST', won ? 'ANOTHER<br><em>SUNRISE.</em>' : 'THE ZONE<br><em>REMEMBERS.</em>', won ? 'You brought yourself home. That’s enough for today.' : 'Every run leaves something behind. Make it count.')}<div class="record-stats"><div><strong>${formatTime(game.time)}</strong><span>SURVIVED</span></div><div><strong>${game.kills}</strong><span>INFECTED</span></div><div><strong>${game.bossKills}</strong><span>TITANS</span></div><div><strong>${game.level}</strong><span>LEVEL</span></div></div><div class="salvage-earned"><span>SALVAGE RECOVERED</span><strong>+${result?.earned || 0} ◈</strong></div>${result?.unlocked.length ? `<div class="unlocked">${result.unlocked.map((a) => `<span>✦ ${a.name} <b>+${a.reward} ◈</b></span>`).join('')}</div>` : ''}${result?.fieldUnlocks?.length ? `<div class="field-rewards"><div class="eyebrow">NEW FIELD UNLOCKS · FREE</div>${result.fieldUnlocks.map((r) => `<p><strong>${r.name}</strong><span>${r.kind === 'operator' ? 'HERO + SIGNATURE GEAR' : r.kind.toUpperCase()}</span></p>`).join('')}</div>` : ''}${result?.mastery?.rewards.length ? `<div class="field-rewards"><div class="eyebrow">${result.mastery.hero.toUpperCase()} MASTERY REWARDS</div>${result.mastery.rewards.map((name) => `<p><strong>${name}</strong><span>PERMANENT UNLOCK</span></p>`).join('')}</div>` : ''}${completed ? `<article class="chapter-debrief"><div class="eyebrow">CHAPTER COMPLETE · +${completed.reward} SALVAGE</div><h2>${completed.title}</h2><p>${completed.debrief}</p>${profile.chapters.length === CHAPTERS.length ? '<strong>CAMPAIGN COMPLETE · THANK YOU FOR PLAYING</strong>' : ''}</article>` : ''}<div class="run-summary"><span>${game.eventsCompleted} EVENTS</span><span>${game.eliteKills} ELITES</span><span>${Math.round(game.damageDealt).toLocaleString()} DAMAGE</span></div><div class="end-actions">${action(completed ? 'CONTINUE STORY ↗' : 'ONE MORE RUN ↗', 'start')}${action('VIEW BUNKER UNLOCKS', 'workshop', 'secondary')}</div></div>`;
 }
 function renderUI() {
   const playing = game.state === 'playing',
@@ -794,13 +893,15 @@ function renderUI() {
                     codex: codexScreen,
                   }[screen] || homeScreen
                 )()
-              : game.state === 'upgrade'
-                ? upgradeScreen()
-                : game.state === 'paused'
-                  ? pauseScreen()
-                  : ['dead', 'won'].includes(game.state)
-                    ? endScreen()
-                    : homeScreen();
+              : game.state === 'relic'
+                ? relicScreen()
+                : game.state === 'upgrade'
+                  ? upgradeScreen()
+                  : game.state === 'paused'
+                    ? pauseScreen()
+                    : ['dead', 'won'].includes(game.state)
+                      ? endScreen()
+                      : homeScreen();
     const view = `${screen}:${screen === 'workshop' ? shopTab : ''}:${inRun ? `${game.state}:${game.state === 'upgrade' ? game.level : ''}` : ''}`;
     renderMenu(html, view);
   }
@@ -836,13 +937,19 @@ function renderUI() {
     $('objective-name').textContent = spec.name;
     $('objective-detail').textContent =
       `${Math.ceil(Math.max(0, event.expires - game.time))}s · ${Math.round(distance(p, event))}m`;
-    $('objective-instruction').textContent = event.guards.some((id) =>
-      game.enemies.some((e) => e.id === id && e.hp > 0),
-    )
-      ? 'CLEAR THE ELITE GUARDS'
-      : distance(p, event) < 65
-        ? 'HOLD HERE TO COMPLETE'
-        : 'ENTER THE MARKED CIRCLE';
+    $('objective-instruction').textContent = [
+      'escort',
+      'reactor',
+      'defense',
+    ].includes(event.kind)
+      ? eventInstruction(game, event)
+      : event.guards.some((id) =>
+            game.enemies.some((e) => e.id === id && e.hp > 0),
+          )
+        ? 'CLEAR THE ELITE GUARDS'
+        : distance(p, event) < 65
+          ? 'HOLD HERE TO COMPLETE'
+          : 'ENTER THE MARKED CIRCLE';
     $('objective-progress').style.width =
       `${Math.min(100, (event.progress / spec.duration) * 100)}%`;
   }
@@ -859,7 +966,8 @@ function renderUI() {
   const boss = game.enemies.find((e) => e.type === 'boss');
   $('boss-hud').hidden = !boss;
   if (boss) {
-    $('boss-name').textContent = boss.name;
+    $('boss-name').textContent =
+      `${boss.name} · PHASE ${boss.stage || 1} · ${boss.parts?.filter((p) => p.hp > 0).length || 0} PARTS${boss.exposed > 0 || boss.parts?.every((p) => p.hp <= 0) ? ' · CORE EXPOSED' : ''}`;
     $('boss-health').style.width =
       `${Math.max(0, (boss.hp / boss.maxHp) * 100)}%`;
   }
@@ -867,17 +975,24 @@ function renderUI() {
   if ($('announcement').textContent !== message)
     $('announcement').textContent = message;
   $('announcement').classList.toggle('visible', !!message);
-  const loadout = Object.entries(game.weapons)
-    .map(
-      ([id, w]) =>
-        `<div class="loadout-weapon ${w.evolved ? 'evolved' : ''}" title="${WEAPONS[id].name} level ${w.level}${w.evolved ? ', evolved' : ''}"><span style="color:${WEAPONS[id].color}">${WEAPONS[id].icon}</span><small>${w.evolved ? '✦' : w.level}</small></div>`,
-    )
-    .join('');
+  const loadout =
+    Object.entries(game.weapons)
+      .map(
+        ([id, w]) =>
+          `<div class="loadout-weapon ${w.evolved ? 'evolved' : ''}" title="${WEAPONS[id].name} level ${w.level}${w.evolved ? ', evolved' : ''}"><span style="color:${WEAPONS[id].color}">${WEAPONS[id].icon}</span><small>${w.evolved ? '✦' : w.level}</small></div>`,
+      )
+      .join('') +
+    game.relics
+      .map((id) => {
+        const r = RELICS.find((r) => r.id === id);
+        return `<div class="loadout-weapon relic-slot" title="${r.name}: ${r.description}"><span style="color:${r.color}">${r.icon}</span><small>✦</small></div>`;
+      })
+      .join('');
   if ($('loadout').innerHTML !== loadout) $('loadout').innerHTML = loadout;
   $('touch-hint').hidden = game.time > 8 || game.distance > 120;
   for (const [id, timer, total] of [
     ['dash', p.dashTimer, p.dashCooldown],
-    ['nova', p.novaTimer, p.novaCooldown],
+    ['nova', p.novaTimer, abilityCooldown(game)],
   ]) {
     const el = $(id);
     el.style.setProperty('--cooldown', `${(timer / total) * 100}%`);
@@ -885,12 +1000,13 @@ function renderUI() {
     el.querySelector('b').textContent = timer > 0 ? Math.ceil(timer) : '';
     el.setAttribute(
       'aria-label',
-      `${id === 'nova' ? abilityFor(game).name : 'Dash'}${timer > 0 ? `, ready in ${Math.ceil(timer)} seconds` : ', ready'}`,
+      `${id === 'nova' ? branchForGame(game)?.name || abilityFor(game).name : 'Dash'}${timer > 0 ? `, ready in ${Math.ceil(timer)} seconds` : ', ready'}`,
     );
   }
   $('nova').querySelector('span').textContent = abilityFor(game).icon;
-  $('nova').querySelector('small').textContent =
-    abilityFor(game).name.toUpperCase();
+  $('nova').querySelector('small').textContent = (
+    branchForGame(game)?.name || abilityFor(game).name
+  ).toUpperCase();
   $('extract-hud').hidden =
     !game.extraction || distance(p, game.extraction) > game.extraction.radius;
   if (game.extraction) {
@@ -925,7 +1041,7 @@ function frame(timestamp) {
   checkpointClock += dt;
   if (
     (checkpointClock >= 5 && game.state === 'playing') ||
-    (previousState !== game.state && game.state === 'upgrade')
+    (previousState !== game.state && ['upgrade', 'relic'].includes(game.state))
   ) {
     checkpoint();
     checkpointClock = 0;

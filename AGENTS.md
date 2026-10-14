@@ -47,3 +47,7 @@ Keep simulation and content definitions browser-independent (`src/game.js`, `src
 ## Field Unlocks
 
 `src/unlocks.js` owns challenge definitions, ownership queries, reward bundles, and saved progress migration. Challenges are free alternatives to existing scrap purchases, never extra gates. Award them once at run settlement, preserve previously owned content, and credit only historical feats supported by saved records. Keep single-operation bests separate from cumulative enemy hunts. Changes require progression and migration tests in `tests/unlocks.test.js`.
+
+## Field Systems (1.4)
+
+`src/mastery.js` owns per-hero mastery, branch/style validation, and branch cooldowns. Signature branches apply only to that hero's signature ability; daily runs use standard branches and field outfits. `src/bosses.js` owns titan health phases, telegraphs, breakable parts, and beam geometry. `src/relics.js` owns compatible relic drafts, queues, and kill hooks. Preserve pending relic drafts alongside level-up offers, and keep burst hooks bounded to prevent recursive shatter chains. Checkpoint version one and profile version two remain supported with optional field migration. New event staging lives in `src/expedition.js`; keep existing campaign signal priority and old active events valid. Verify these interactions in `tests/field-depth.test.js` and the twenty-minute simulation. The manual renderer fixture in `tests/fixtures/field-scenes.html` is local development only and never accesses saves.

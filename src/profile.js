@@ -17,6 +17,7 @@ import {
   awardFieldUnlocks,
   grantReward,
 } from './unlocks.js';
+import { parseMastery, settleMastery } from './mastery.js';
 import { missionReady } from './expedition.js';
 export const SAVE_KEY = 'nuclear-survivors-v2';
 export function freshProfile() {
@@ -29,6 +30,8 @@ export function freshProfile() {
     abilities: ['shockwave'],
     loadouts: {},
     unlockProgress: {},
+    mastery: {},
+    heroStyles: {},
     zones: ['forest'],
     achievements: [],
     runs: 0,
@@ -173,6 +176,7 @@ export function parseProfile(raw) {
         p.settings[k] = data.settings[k];
     p.settings.quality = data.settings?.quality === 'low' ? 'low' : 'high';
     restoreUnlockProgress(p, data.unlockProgress);
+    parseMastery(p, data);
     return p;
   } catch {
     return freshProfile();
@@ -284,7 +288,8 @@ export function settleRun(profile, game) {
   });
   profile.history = profile.history.slice(0, 8);
   const fieldUnlocks = awardFieldUnlocks(profile, game);
-  return { earned, unlocked, chapterCompleted, fieldUnlocks };
+  const mastery = settleMastery(profile, game);
+  return { earned, unlocked, chapterCompleted, fieldUnlocks, mastery };
 }
 
 export function selectPerk(profile, id) {

@@ -19,6 +19,14 @@ import {
 } from './expedition.js';
 import { weaponPattern, WEAPON_LIMIT, WEAPON_STEPS } from './build.js';
 import { activateAbility, updateAbilities } from './abilities.js';
+import { masteryBranch, branchForGame } from './mastery.js';
+import { chooseRelics, relicKill, returningShards } from './relics.js';
+import {
+  updateBoss,
+  bossTargets,
+  breakBossPart,
+  beamContains,
+} from './bosses.js';
 import { enemyTypeFor, updateEnemyBehavior } from './enemy-behavior.js';
 export { DURATION, UPGRADES } from './content.js';
 export const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -72,6 +80,16 @@ export function createGame(random = Math.random, options = {}) {
     difficulty,
     perk,
     ability: ability.id,
+    branch: masteryBranch(operator.id, options.branch)?.id || 'standard',
+    outfit: options.outfit === 'veteran' ? 'veteran' : 'field',
+    abilityUses: 0,
+    abilityFields: [],
+    abilityPulse: 0,
+    relics: [],
+    relicChoices: [],
+    relicDrafts: 0,
+    relicHealAt: 0,
+    partsBroken: 0,
     allowedWeapons,
     chapter: options.chapter || null,
     daily: options.daily || null,
@@ -273,6 +291,7 @@ export function applyUpgrade(g, id) {
   g.pendingLevels = Math.max(0, g.pendingLevels - 1);
   g.state = 'playing';
   if (g.pendingLevels > 0) chooseUpgrades(g);
+  else if (g.relicDrafts > 0) chooseRelics(g);
   return true;
 }
 export function checkEvolutions(g) {
@@ -360,18 +379,30 @@ export function hitEnemy(g, e, amount, source = g.player, kind = 'impact') {
     (critical ? 2 : 1) *
     (g.buffs.overdrive > 0 ? 1.6 : 1) *
     (g.perk === 'hunter' && (e.elite || e.type === 'boss') ? 1.25 : 1);
-  e.hp -= damage;
+  const coreArmor =
+    e.type === 'boss'
+      ? e.exposed > 0 || e.parts?.every((part) => part.hp <= 0)
+        ? 1.4
+        : e.parts?.length
+          ? 0.7
+          : 1
+      : 1;
+  e.hp -= damage * coreArmor;
   e.hit = 0.12;
-  g.damageDealt += damage;
+  g.damageDealt += damage * coreArmor;
   if (g.numbers.length < 45)
     g.numbers.push({
       x: e.x,
       y: e.y - e.radius,
-      value: Math.round(damage),
+      value: Math.round(damage * coreArmor),
       critical,
       life: 0.65,
     });
   if (e.hp > 0) return;
+  if (e.type === 'boss-part') {
+    breakBossPart(g, e);
+    return;
+  }
   g.kills++;
   g.enemyKills[e.type] = (g.enemyKills[e.type] || 0) + 1;
   if (e.elite) {
@@ -395,6 +426,7 @@ export function hitEnemy(g, e, amount, source = g.player, kind = 'impact') {
     announce(g, 'TITAN DOWN · RECOVER THE RELIC', 5);
     g.shake = 14;
   }
+  relicKill(g, e, kind);
   if (e.type === 'bomber') {
     g.effects.push({
       kind: 'ring',
@@ -456,6 +488,15 @@ export function activateDash(g, input = { x: 0, y: 0 }) {
   p.dashLeft = 0.2;
   p.dashTimer = p.dashCooldown;
   p.invulnerable = 0.4;
+  if (g.relics.includes('afterimage'))
+    g.hazards.push({
+      x: p.x,
+      y: p.y,
+      radius: 70,
+      warn: 0,
+      life: 2,
+      friendly: true,
+    });
   burst(g, p.x, p.y, '#c8f6e0', 12);
   return true;
 }
@@ -488,7 +529,9 @@ function contracts(g) {
 }
 function weapons(g, dt) {
   const p = g.player,
-    targets = g.enemies.filter((e) => e.hp > 0 && !(e.burrowLeft > 0));
+    targets = [...g.enemies, ...bossTargets(g)].filter(
+      (e) => e.hp > 0 && !(e.burrowLeft > 0),
+    );
   const target = targets.reduce(
     (best, e) => (!best || distance(e, p) < distance(best, p) ? e : best),
     null,
@@ -714,7 +757,9 @@ export function update(
   p.hp = Math.min(p.maxHp, p.hp + p.regen * dt);
   const length = Math.hypot(input.x, input.y),
     normal = Math.max(1, length);
-  const speed = p.speed * (g.buffs.surge > 0 ? 1.25 : 1);
+  const speed =
+    p.speed *
+    (g.buffs.surge > 0 ? (branchForGame(g)?.id === 'redline' ? 1.4 : 1.25) : 1);
   const dx = p.dashLeft > 0 ? p.dashX * 750 : (input.x / normal) * speed,
     dy = p.dashLeft > 0 ? p.dashY * 750 : (input.y / normal) * speed;
   p.x += dx * dt;
@@ -793,6 +838,10 @@ export function update(
     e.hit = Math.max(0, e.hit - dt);
     e.attack -= dt;
     if (updateEnemyBehavior(g, e, dt)) continue;
+    if (e.type === 'boss') {
+      updateBoss(g, e, dt);
+      continue;
+    }
     if (e.windup > 0) {
       e.windup = Math.max(0, e.windup - dt);
       if (e.windup === 0) e.charge = 0.65;
@@ -820,44 +869,17 @@ export function update(
       e.x += ((p.x - e.x) / d) * e.speed * dt * move;
       e.y += ((p.y - e.y) / d) * e.speed * dt * move;
     }
-    if ((e.type === 'spitter' || e.type === 'boss') && e.attack <= 0) {
-      const count =
-        e.type === 'boss' ? (e.phase === 1 ? 5 : 10 + e.phase * 3) : 1;
-      for (let i = 0; i < count; i++) {
-        const a =
-          e.type === 'boss'
-            ? e.phase === 1
-              ? Math.atan2(p.y - e.y, p.x - e.x) + (i - 2) * 0.2
-              : (i * Math.PI * 2) / count + g.time
-            : Math.atan2(p.y - e.y, p.x - e.x);
-        g.hostile.push({
-          x: e.x,
-          y: e.y,
-          vx: Math.cos(a) * 125,
-          vy: Math.sin(a) * 125,
-          life: 5,
-          radius: e.type === 'boss' ? 7 : 5,
-        });
-      }
-      e.attack = e.type === 'boss' ? (e.hp < e.maxHp * 0.4 ? 1.9 : 3) : 2.6;
-      if (e.type === 'boss' && e.phase === 1 && g.enemies.length < 165) {
-        for (let i = 0; i < 2; i++)
-          spawnEnemy(g, 'runner', e.x + (i ? 30 : -30), e.y, 0.7);
-      }
-      if (e.type === 'boss' && e.phase === 2 && g.hazards.length < 16) {
-        for (let i = 0; i < 3; i++) {
-          const a = (i * Math.PI * 2) / 3 + g.time;
-          g.hazards.push({
-            x: p.x + Math.cos(a) * 100,
-            y: p.y + Math.sin(a) * 100,
-            radius: 40,
-            warn: 1.8,
-            life: 5,
-          });
-        }
-      }
-      if (e.type === 'boss' && g.hazards.length < 18)
-        g.hazards.push({ x: p.x, y: p.y, radius: 60, warn: 1.4, life: 5 });
+    if (e.type === 'spitter' && e.attack <= 0) {
+      const a = Math.atan2(p.y - e.y, p.x - e.x);
+      g.hostile.push({
+        x: e.x,
+        y: e.y,
+        vx: Math.cos(a) * 125,
+        vy: Math.sin(a) * 125,
+        life: 5,
+        radius: 5,
+      });
+      e.attack = 2.6;
     }
     if (distance(e, p) < e.radius + 12) hurtPlayer(g, e.damage || 12);
   }
@@ -865,6 +887,7 @@ export function update(
   updateExpedition(g, dt);
   updateAbilities(g, dt);
   weapons(g, dt);
+  const collisionTargets = [...g.enemies, ...bossTargets(g)];
   for (const b of g.bullets) {
     if (b.kind === 'discus') {
       b.age += dt;
@@ -872,6 +895,7 @@ export function update(
         if (!b.returning) {
           b.returning = true;
           b.hits.clear();
+          returningShards(g, b);
         }
         const d = distance(b, p) || 1;
         b.vx = ((p.x - b.x) / d) * 500;
@@ -883,7 +907,7 @@ export function update(
     b.x += b.vx * dt;
     b.y += b.vy * dt;
     b.life -= dt;
-    for (const e of g.enemies) {
+    for (const e of collisionTargets) {
       if (e.hp <= 0 || b.life <= 0 || b.hits.has(e.id)) continue;
       // Swept segment collision keeps fast rounds from tunneling through small enemies.
       const vx = b.x - old.x,
@@ -955,7 +979,9 @@ export function update(
       if (h.friendly) {
         for (const e of g.enemies)
           if (distance(e, h) < h.radius) hitEnemy(g, e, 30 * dt);
-      } else if (distance(p, h) < h.radius)
+      } else if (
+        h.kind === 'beam' ? beamContains(h, p) : distance(p, h) < h.radius
+      )
         hurtPlayer(g, 8 * g.difficulty.scale);
     }
   }
@@ -1009,6 +1035,11 @@ export function update(
       announce(g, 'CORE VACUUM · ALL EXPERIENCE RECOVERED', 3);
     }
     if (s.kind === 'scrap') g.scrap += s.value;
+    if (
+      ['scrap', 'crate'].includes(s.kind) &&
+      g.relics.includes('salvage-heart')
+    )
+      p.novaTimer = Math.max(0, p.novaTimer - 1.5);
     if (s.kind === 'crate') {
       g.scrap += 12;
       g.crates++;
@@ -1021,12 +1052,12 @@ export function update(
     }
     if (s.kind === 'relic') {
       g.scrap += 20;
-      g.pendingLevels++;
-      if (g.state === 'playing') chooseUpgrades(g);
+      g.relicDrafts++;
     }
     burst(g, s.x, s.y, '#f7d38d', 12);
     return false;
   });
+  if (g.state === 'playing' && g.relicDrafts > 0) chooseRelics(g);
   if (g.supplies.length > 80) g.supplies.splice(0, g.supplies.length - 80);
   for (const s of g.particles) {
     s.x += s.vx * dt;

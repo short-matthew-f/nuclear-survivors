@@ -1,0 +1,143 @@
+<!doctype html>
+<html>
+  <head>
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <title>Field systems visual test</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #263a2c;
+        color: #e4f5be;
+        font-family: monospace;
+        height: 100%;
+        overflow: hidden;
+      }
+      canvas {
+        width: 100vw;
+        height: 100dvh;
+        display: block;
+      }
+      nav {
+        position: fixed;
+        z-index: 2;
+        top: 12px;
+        left: 12px;
+        right: 12px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+      }
+      button {
+        background: #d1e9ac;
+        color: #203223;
+        border: 1px solid #eef5da;
+        padding: 12px;
+        font: 11px monospace;
+        min-height: 44px;
+      }
+      #note {
+        position: fixed;
+        bottom: 15px;
+        left: 15px;
+        right: 15px;
+        background: #263a2ce8;
+        padding: 14px;
+        line-height: 1.5;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+    <nav id="cases"></nav>
+    <div id="note"></div>
+    <script type="module">
+      import { createGame, seededRandom, spawnEnemy } from '/src/game.js';
+      import { prepareBoss, updateBoss } from '/src/bosses.js';
+      import { beginEvent } from '/src/expedition.js';
+      import { activateAbility, updateAbilities } from '/src/abilities.js';
+      import { createRenderer } from '/src/render.js';
+      const canvas = document.getElementById('scene'),
+        renderer = createRenderer(canvas);
+      const cases = [
+        'Groundskeeper',
+        'Mother of Spores',
+        'Reactor Heart',
+        'Moving convoy',
+        'Shutdown',
+        'Survivor defense',
+        'Mobile swarm',
+        'Sanctuary',
+      ];
+      let game,
+        ambient = 0;
+      function load(index) {
+        game = createGame(seededRandom('visual'), {
+          operator: index === 7 ? 'morrow' : 'rook',
+          branch: index === 7 ? 'sanctuary' : 'swarm',
+          outfit: 'veteran',
+        });
+        game.state = 'playing';
+        game.player.x = 0;
+        game.player.y = 40;
+        if (index < 3) {
+          const e = spawnEnemy(game, 'boss', 0, -180);
+          e.phase = index;
+          e.name = cases[index];
+          prepareBoss(e);
+          e.attack = 0;
+          updateBoss(game, e, 0.01);
+          e.telegraph.tx = 90;
+          e.telegraph.ty = 80;
+          e.telegraph.angle = Math.PI / 2;
+        } else if (index < 6) {
+          beginEvent(game, ['escort', 'reactor', 'defense'][index - 3]);
+          Object.assign(game.fieldEvent, {
+            x: 0,
+            y: -120,
+            targetX: 150,
+            targetY: 220,
+          });
+        } else {
+          activateAbility(game);
+          spawnEnemy(game, 'brute', 100, -100);
+          updateAbilities(game, 0.05);
+        }
+        for (let i = 0; i < 4; i++)
+          spawnEnemy(
+            game,
+            i % 2 ? 'bomber' : 'runner',
+            Math.cos(i * 1.7) * 160,
+            Math.sin(i * 1.7) * 200 + 20,
+          );
+        game.state = 'paused';
+        document.getElementById('note').textContent =
+          cases[index] +
+          ' · visual fixture only · no saved progression is read or written';
+      }
+      for (const [i, name] of cases.entries()) {
+        const b = document.createElement('button');
+        b.textContent = name;
+        b.onclick = () => load(i);
+        document.getElementById('cases').append(b);
+      }
+      new ResizeObserver(() => renderer.resize('high')).observe(canvas);
+      renderer.resize('high');
+      load(0);
+      function frame() {
+        ambient += 1 / 60;
+        renderer.render(
+          game,
+          { shake: false, numbers: true, radar: false },
+          null,
+          ambient,
+        );
+        requestAnimationFrame(frame);
+      }
+      frame();
+    </script>
+  </body>
+</html>

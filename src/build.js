@@ -1,3 +1,4 @@
+import { branchForGame, abilityCooldown } from './mastery.js';
 import { WEAPONS, EVOLUTIONS, UPGRADES, ABILITIES } from './content.js';
 
 export const WEAPON_LIMIT = 4;
@@ -153,7 +154,8 @@ export function weaponPattern(
       interval: 0.2 * p.haste * (evolved ? 0.7 : 1),
     });
   if (id === 'drone' && g.operator.id === 'rook') pattern.count++;
-  if (g.buffs.surge > 0) pattern.interval *= 0.65;
+  if (g.buffs.surge > 0)
+    pattern.interval *= branchForGame(g)?.id === 'redline' ? 0.4 : 0.65;
   return pattern;
 }
 
@@ -204,19 +206,41 @@ export function upgradePreview(g, id) {
   }
   const p = g.player;
   const ability = ABILITIES.find((a) => a.id === g.ability) || ABILITIES[0];
+  const branch = branchForGame(g)?.id;
   const strength = (power) =>
     ({
-      shockwave: Math.round(80 * power * p.power),
-      mend: Math.round(35 * power),
-      surge: `${number(Math.min(16, 8 * power))}s`,
-      freeze: `${number(4 * power)}s`,
-      turret: Math.round(28 * power * p.power),
+      shockwave: Math.round(
+        (branch === 'demolition'
+          ? 160
+          : branch === 'siegebreaker'
+            ? 200
+            : branch === 'bulwark'
+              ? 40
+              : 80) *
+          power *
+          p.power,
+      ),
+      mend: number(
+        (branch === 'sanctuary' ? 5 : branch === 'fallout-medic' ? 20 : 35) *
+          power,
+      ),
+      surge: `${number(Math.min(16, (branch === 'redline' ? 5 : 8) * power))}s`,
+      freeze: `${number((branch === 'shatter' ? 2 : branch === 'permafrost' ? 0.25 : 4) * power)}s`,
+      turret: Math.round(
+        (branch === 'swarm' ? 12 : branch === 'battery' ? 70 : 28) *
+          power *
+          p.power,
+      ),
     })[ability.id];
   const abilityLabel = {
     shockwave: 'Shockwave damage',
-    mend: 'Field mend healing',
+    mend:
+      branch === 'sanctuary'
+        ? 'Sanctuary healing / second'
+        : 'Field mend healing',
     surge: 'Overclock duration',
-    freeze: 'Cryo duration',
+    freeze:
+      branch === 'permafrost' ? 'Frost field chill duration' : 'Cryo duration',
     turret: 'Sentry damage / shot',
   }[ability.id];
   const stats = {
@@ -254,7 +278,7 @@ export function upgradePreview(g, id) {
     nova: [
       abilityLabel,
       `${strength(p.novaPower)} → ${strength(p.novaPower + 0.4)}`,
-      `ability cooldown: ${number(p.novaCooldown)}s → ${number(p.novaCooldown * 0.85)}s`,
+      `ability cooldown: ${number(abilityCooldown(g))}s → ${number(abilityCooldown(g) * 0.85)}s`,
     ],
     xp: [
       'experience gain',

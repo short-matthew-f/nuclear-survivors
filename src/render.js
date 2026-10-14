@@ -1,6 +1,7 @@
 import { distance } from './game.js';
 import { weaponPattern } from './build.js';
 import { artUrl } from './art.js';
+import { eventTarget } from './expedition.js';
 import { FIELD_EVENTS } from './content.js';
 const TAU = Math.PI * 2;
 function circle(ctx, x, y, r, color) {
@@ -336,7 +337,43 @@ export function createRenderer(canvas) {
       ctx.fillStyle = '#d1eb8399';
       ctx.fillRect(x + 23, y + 13, 12, 5);
     }
+    for (const f of g.abilityFields) {
+      circle(
+        ctx,
+        f.x,
+        f.y,
+        f.radius,
+        f.kind === 'healing' ? '#adf0cc22' : '#a1edff22',
+      );
+      ring(
+        ctx,
+        f.x,
+        f.y,
+        f.radius,
+        f.kind === 'healing' ? '#adf0cc' : '#a1edff',
+        2,
+      );
+      ctx.fillStyle = f.kind === 'healing' ? '#adf0cc' : '#a1edff';
+      ctx.font = 'bold 22px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(f.kind === 'healing' ? '+' : '❄', f.x, f.y + 7);
+    }
     for (const h of g.hazards) {
+      if (h.kind === 'beam') {
+        ctx.save();
+        ctx.translate(h.x, h.y);
+        ctx.rotate(h.angle);
+        ctx.fillStyle = '#ffbb9766';
+        ctx.fillRect(0, -h.radius, h.length, h.radius * 2);
+        ctx.strokeStyle = '#ffe4b8';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(h.length, 0);
+        ctx.stroke();
+        ctx.restore();
+        continue;
+      }
       const warning = h.warn > 0,
         alpha = warning ? 0.08 + Math.sin(ambient * 8) * 0.04 : 0.2;
       ctx.globalAlpha = alpha;
@@ -374,7 +411,14 @@ export function createRenderer(canvas) {
       ring(ctx, e.x, e.y, 65, `${spec.color}88`, 2);
       ctx.save();
       ctx.translate(e.x, e.y);
-      if (e.kind === 'rescue') {
+      if (e.kind === 'defense') {
+        for (const x of [-22, 0, 22]) {
+          ctx.save();
+          ctx.translate(x, 0);
+          sprite(0, 34);
+          ctx.restore();
+        }
+      } else if (e.kind === 'rescue') {
         ring(ctx, 0, 0, 22, spec.color, 2);
         sprite(0, 44);
       } else if (
@@ -405,6 +449,41 @@ export function createRenderer(canvas) {
         ctx.stroke();
       }
       ctx.restore();
+      if (['escort', 'defense'].includes(e.kind)) {
+        ctx.fillStyle = '#18251c';
+        ctx.fillRect(e.x - 42, e.y + 35, 84, 6);
+        ctx.fillStyle = spec.color;
+        ctx.fillRect(
+          e.x - 42,
+          e.y + 35,
+          84 * Math.max(0, e.health / e.maxHealth),
+          6,
+        );
+      }
+      if (e.kind === 'escort') {
+        ctx.setLineDash([5, 8]);
+        ctx.strokeStyle = '#ffe0a166';
+        ctx.beginPath();
+        ctx.moveTo(e.x, e.y);
+        ctx.lineTo(e.targetX, e.targetY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ring(ctx, e.targetX, e.targetY, 25, '#ffe0a1', 2);
+      }
+      if (e.kind === 'reactor') {
+        for (let i = 0; i < 3; i++) {
+          const a = (i * TAU) / 3,
+            x = e.x + Math.cos(a) * 90,
+            y = e.y + Math.sin(a) * 90;
+          circle(ctx, x, y, 14, i < e.stage ? '#a8eab3' : '#788ba6');
+          ctx.fillStyle = '#11251b';
+          ctx.font = 'bold 14px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(i < e.stage ? '✓' : String(i + 1), x, y + 5);
+        }
+        const target = eventTarget(e);
+        ring(ctx, target.x, target.y, 45, '#b9e6ff', 3);
+      }
     }
     if (g.extraction) {
       const e = g.extraction;
@@ -489,6 +568,50 @@ export function createRenderer(canvas) {
       );
     }
     for (const e of g.enemies) {
+      if (e.type === 'boss') {
+        const t = e.telegraph;
+        if (t) {
+          if (['charge', 'spores'].includes(t.kind)) {
+            ctx.strokeStyle = '#ffbc9877';
+            ctx.lineWidth = t.kind === 'charge' ? 35 : 55;
+            ctx.beginPath();
+            ctx.moveTo(e.x, e.y);
+            ctx.lineTo(t.tx, t.ty);
+            ctx.stroke();
+          } else if (t.kind === 'beams') {
+            for (
+              let i = 0;
+              i < Math.max(1, e.parts.filter((p) => p.hp > 0).length);
+              i++
+            ) {
+              const a =
+                t.angle +
+                (i * TAU) / Math.max(1, e.parts.filter((p) => p.hp > 0).length);
+              ctx.strokeStyle = '#ffd6aa88';
+              ctx.lineWidth = 4;
+              ctx.setLineDash([10, 8]);
+              ctx.beginPath();
+              ctx.moveTo(e.x, e.y);
+              ctx.lineTo(e.x + Math.cos(a) * 440, e.y + Math.sin(a) * 440);
+              ctx.stroke();
+              ctx.setLineDash([]);
+            }
+          } else {
+            circle(ctx, t.tx, t.ty, 95, '#ffbc981c');
+            ring(ctx, t.tx, t.ty, 95, '#ffbc98', 3);
+          }
+          ctx.fillStyle = '#ffe4b8';
+          ctx.font = 'bold 11px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(
+            t.kind.toUpperCase() + ' · MOVE',
+            e.x,
+            e.y - e.radius - 25,
+          );
+        }
+        if (e.exposed > 0 || e.parts?.every((p) => p.hp <= 0))
+          ring(ctx, e.x, e.y, e.radius + 12, '#adf0cc', 4);
+      }
       if (
         Math.abs(e.x - camera.x) > worldWidth / 2 + 60 ||
         Math.abs(e.y - camera.y) > worldHeight / 2 + 60
@@ -613,6 +736,29 @@ export function createRenderer(canvas) {
       }
       ctx.globalAlpha = 1;
       ctx.restore();
+      if (e.type === 'boss') {
+        for (const part of e.parts || [])
+          if (part.hp > 0) {
+            ctx.strokeStyle = '#ffe1a177';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(e.x, e.y);
+            ctx.lineTo(part.x, part.y);
+            ctx.stroke();
+            circle(ctx, part.x, part.y, part.radius + 3, '#423725');
+            ring(ctx, part.x, part.y, part.radius + 3, '#ffe1a1', 2);
+            ctx.fillStyle = '#ffe1a1';
+            ctx.font = 'bold 11px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(part.name[0], part.x, part.y + 4);
+            ctx.fillRect(
+              part.x - 14,
+              part.y - 25,
+              28 * Math.max(0, part.hp / part.maxHp),
+              4,
+            );
+          }
+      }
       if (e.hp < e.maxHp && e.type !== 'boss') {
         ctx.fillStyle = '#111910';
         ctx.fillRect(e.x - 14, e.y - e.radius - 9, 28, 3);
@@ -717,6 +863,20 @@ export function createRenderer(canvas) {
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(p.angle);
+      if (g.outfit === 'veteran') {
+        ctx.fillStyle = '#f2a96a';
+        ctx.strokeStyle = '#ffdfab';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-12, -18);
+        ctx.lineTo(-45, -21);
+        ctx.lineTo(-38, 20);
+        ctx.lineTo(-10, 18);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.filter = 'hue-rotate(315deg) saturate(1.4)';
+      }
       if (
         !sprite(
           { nomad: 0, spark: 1, bastion: 2, morrow: 0, rook: 1, vesper: 2 }[

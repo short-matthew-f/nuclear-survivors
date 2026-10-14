@@ -25,6 +25,18 @@ export function beginEvent(g, kind) {
       event.guards.push(e.id);
     }
   }
+  if (['escort', 'reactor', 'defense'].includes(kind)) {
+    Object.assign(event, {
+      health: kind === 'escort' ? 180 : 120,
+      maxHealth: kind === 'escort' ? 180 : 120,
+      wave: 0,
+      stage: 0,
+      clock: 0,
+      targetX: event.x + 330,
+      targetY: event.y + 180,
+    });
+    event.expires = g.time + 100;
+  }
   g.fieldEvent = event;
   announce(g, `${FIELD_EVENTS[kind].name} · FOLLOW THE SIGNAL`, 5);
   return true;
@@ -43,19 +55,23 @@ export function makeElite(enemy) {
 export function updateExpedition(g, dt) {
   g.buffs.overdrive = Math.max(0, g.buffs.overdrive - dt);
   if (!g.fieldEvent && g.time >= g.nextEvent) {
-    const kinds = ['rescue', 'relay', 'convoy'];
+    const kinds = ['rescue', 'escort', 'relay', 'reactor', 'convoy', 'defense'];
     const required = missionGoals(g).find(
       (goal) => goal.progress < goal.target && FIELD_EVENTS[goal.kind],
     );
     beginEvent(g, required?.kind || kinds[g.eventIndex % kinds.length]);
     g.eventIndex++;
-    g.nextEvent = g.time + 115;
+    g.nextEvent = g.time + 75;
   }
   const event = g.fieldEvent;
   if (!event) return;
   if (g.time >= event.expires) {
     announce(g, 'FIELD SIGNAL LOST · KEEP MOVING', 3);
     g.fieldEvent = null;
+    return;
+  }
+  if (['escort', 'reactor', 'defense'].includes(event.kind)) {
+    updateEncounter(g, event, dt);
     return;
   }
   const guarded = event.guards.some((id) =>
@@ -114,4 +130,127 @@ export function missionGoals(g) {
 }
 export function missionReady(g) {
   return missionGoals(g).every((goal) => goal.progress >= goal.target);
+}
+
+function encounterWave(g, event, count) {
+  event.guards = [];
+  for (let i = 0; i < count && g.enemies.length < 165; i++) {
+    const a = (i * Math.PI * 2) / count + event.wave;
+    const e = spawnEnemy(
+      g,
+      i === 0 ? 'brute' : i % 3 === 0 ? 'bomber' : 'runner',
+      event.x + Math.cos(a) * 175,
+      event.y + Math.sin(a) * 175,
+      0.85,
+    );
+    event.guards.push(e.id);
+  }
+  event.wave++;
+}
+export function eventTarget(event) {
+  if (event.kind === 'reactor' && event.stage < 3) {
+    const a = (event.stage * Math.PI * 2) / 3;
+    return { x: event.x + Math.cos(a) * 90, y: event.y + Math.sin(a) * 90 };
+  }
+  return event;
+}
+export function eventInstruction(g, event) {
+  if (event.kind === 'escort')
+    return `ESCORT TRUCK · ${Math.ceil(event.health)}/${event.maxHealth} HULL · STAY WITHIN 100m`;
+  if (event.kind === 'reactor')
+    return event.stage < 3
+      ? `DISABLE TERMINAL ${event.stage + 1}/3 · HOLD IN ITS CIRCLE`
+      : 'CONTAINMENT · HOLD AT THE CORE';
+  if (event.kind === 'defense')
+    return `DEFEND SURVIVORS · WAVE ${Math.min(3, event.wave)}/3 · ${Math.ceil(event.health)} HEALTH`;
+  return FIELD_EVENTS[event.kind].instruction;
+}
+function updateEncounter(g, event, dt) {
+  const spec = FIELD_EVENTS[event.kind];
+  event.clock += dt;
+  if (event.kind === 'escort') {
+    if (event.wave < 2 && event.progress >= event.wave * 9)
+      encounterWave(g, event, 4 + event.wave);
+    if (distance(g.player, event) < 100) {
+      event.progress += dt;
+      const d =
+        Math.hypot(event.targetX - event.x, event.targetY - event.y) || 1;
+      event.x += ((event.targetX - event.x) / d) * Math.min(d, 22 * dt);
+      event.y += ((event.targetY - event.y) / d) * Math.min(d, 22 * dt);
+    }
+  }
+  if (event.kind === 'defense') {
+    if (event.wave < 3 && event.progress >= event.wave * 6)
+      encounterWave(g, event, 3 + event.wave);
+    const guarded = event.guards.some((id) =>
+      g.enemies.some((e) => e.id === id && e.hp > 0),
+    );
+    if (!guarded && distance(g.player, event) < 80) event.progress += dt;
+  }
+  if (event.kind === 'reactor') {
+    if (event.wave === 0) encounterWave(g, event, 4);
+    const target = eventTarget(event);
+    if (distance(g.player, target) < 45) {
+      event.progress += dt;
+      const nextStage = Math.min(3, Math.floor(event.progress / 3));
+      if (nextStage > event.stage) {
+        event.stage = nextStage;
+        announce(
+          g,
+          event.stage < 3
+            ? `TERMINAL ${event.stage}/3 OFFLINE · NEXT TERMINAL MARKED`
+            : 'ALL TERMINALS OFFLINE · HOLD CONTAINMENT',
+          3,
+        );
+      }
+    }
+    if (event.clock >= 4 && g.hazards.length < 16) {
+      event.clock = 0;
+      // The active console stays clear; the other two zones vent with a warning.
+      const a = ((event.stage + 1) * Math.PI * 2) / 3;
+      g.hazards.push({
+        x: event.x + Math.cos(a) * 130,
+        y: event.y + Math.sin(a) * 130,
+        radius: 40,
+        warn: 1.5,
+        life: 3,
+      });
+    }
+  }
+  if (event.kind !== 'reactor') {
+    const attackers = g.enemies.filter(
+      (e) => e.hp > 0 && !e.burrowLeft && distance(e, event) < 55,
+    ).length;
+    event.health = Math.max(0, event.health - attackers * 7 * dt);
+    if (event.health <= 0) {
+      announce(g, 'FIELD OBJECTIVE LOST · NO REWARD', 4);
+      g.fieldEvent = null;
+      return;
+    }
+  }
+  if (event.progress < spec.duration) return;
+  g.eventsCompleted++;
+  g.eventCounts[event.kind] = (g.eventCounts[event.kind] || 0) + 1;
+  g.scrap += spec.reward;
+  if (event.kind === 'defense') {
+    g.rescues += 2;
+    g.eventCounts.rescue = (g.eventCounts.rescue || 0) + 1;
+    g.player.hp = Math.min(g.player.maxHp, g.player.hp + 50);
+  }
+  if (event.kind === 'reactor') g.buffs.overdrive = 25;
+  g.supplies.push({ x: event.x, y: event.y, kind: 'relic', id: g.nextId++ });
+  if (event.kind === 'escort')
+    g.supplies.push({
+      x: event.x + 20,
+      y: event.y,
+      kind: 'medkit',
+      id: g.nextId++,
+    });
+  burst(g, event.x, event.y, spec.color, 30);
+  announce(
+    g,
+    `${spec.name} COMPLETE · +${spec.reward} SCRAP · RELIC RECOVERED`,
+    5,
+  );
+  g.fieldEvent = null;
 }

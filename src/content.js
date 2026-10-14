@@ -834,3 +834,31 @@ Object.assign(LORE, {
   healer:
     'A living field hospital for the infection. Its green pulse restores nearby infected. Bring it down before fighting the pack.',
 });
+
+Object.assign(FIELD_EVENTS, {
+  escort: {
+    name: 'MOVING CONVOY',
+    icon: '»',
+    color: '#ffe0a1',
+    instruction:
+      'Stay within 100m of the truck to escort it through two ambushes',
+    duration: 22,
+    reward: 80,
+  },
+  reactor: {
+    name: 'REACTOR SHUTDOWN',
+    icon: '☢',
+    color: '#b9e6ff',
+    instruction: 'Disable three marked terminals, then hold containment',
+    duration: 14,
+    reward: 90,
+  },
+  defense: {
+    name: 'SURVIVOR DEFENSE',
+    icon: '♡',
+    color: '#adf0cc',
+    instruction: 'Protect the survivors through three assault waves',
+    duration: 18,
+    reward: 70,
+  },
+});

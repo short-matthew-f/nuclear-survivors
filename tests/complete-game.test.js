@@ -1,4 +1,6 @@
 import test from 'node:test';
+import { applyRelic } from '../src/relics.js';
+import { eventTarget } from '../src/expedition.js';
 import assert from 'node:assert/strict';
 import {
   createGame,
@@ -97,17 +99,24 @@ test('expired events lose their signal without granting rewards', () => {
   assert.equal(g.eventsCompleted, 0);
   assert.equal(g.scrap, 0);
 });
-test('field event director rotates all three encounter types', () => {
+test('field event director rotates all six encounter types', () => {
   const g = run();
   g.nextEvent = 40;
   const kinds = [];
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 6; i++) {
     g.time = g.nextEvent;
     updateExpedition(g, 0.01);
     kinds.push(g.fieldEvent.kind);
     g.fieldEvent = null;
   }
-  assert.deepEqual(kinds, ['rescue', 'relay', 'convoy']);
+  assert.deepEqual(kinds, [
+    'rescue',
+    'escort',
+    'relay',
+    'reactor',
+    'convoy',
+    'defense',
+  ]);
 });
 test('elite conversion is idempotent and elite loot pays once', () => {
   const g = run(),
@@ -333,11 +342,12 @@ test('a twenty-minute expedition remains bounded with seven evolved weapons and 
   for (const id of Object.keys(WEAPONS))
     g.weapons[id] = { level: 5, clock: 0, evolved: true };
   for (let i = 0; i < 24000; i++) {
+    if (g.state === 'relic') applyRelic(g, g.relicChoices[0]);
     if (g.state === 'upgrade') {
       g.pendingLevels = 0;
       g.state = 'playing';
     }
-    const target = g.fieldEvent || {
+    const target = (g.fieldEvent && eventTarget(g.fieldEvent)) || {
       x: Math.cos(i / 300) * 300,
       y: Math.sin(i / 300) * 300,
     };
