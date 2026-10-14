@@ -59,3 +59,7 @@ Keep simulation and content definitions browser-independent (`src/game.js`, `src
 ## Combat Presentation (1.6)
 
 `src/combat-ux.js` owns upgrade/relic markup, primary objective priority, and the resume gate. Countdown orientation is UI-only; keep the simulation paused and cancel on backgrounding. `src/damage.js` owns normalized last-hit/fatal-hit records; attribute actual collision sources and never guess missing historical damage. Normalize optional hit fields during checkpoint migration. `src/threat-render.js` draws danger after weapon effects and local received-hit feedback. Keep visual warning geometry consistent with collision geometry. Verify changes in `tests/combat-ux.test.js`; `tests/fixtures/combat-ux.html` is a save-free development fixture only.
+
+## Two-thumb Controls (1.7)
+
+`src/controls.js` owns movement-side acquisition and cooldown labels. Touch movement starts opposite the action buttons, then remains captured across the arena; mouse input may start anywhere. Mirror movement and actions together. `src/radar.js` draws a dedicated HUD canvas; keep it outside lower thumb regions and retain off-map objective flags. Verify acquisition and radar projection in `tests/controls.test.js`. Illustrative thumb masks live only in the save-free combat fixture.

@@ -1,3 +1,5 @@
+import { canStartMovement, movementSide, cooldownReadout } from './controls.js';
+import { createRadarRenderer } from './radar.js';
 import {
   renderUpgradeChoices,
   renderRelicChoices,
@@ -79,6 +81,7 @@ const $ = (id) => document.getElementById(id),
         `${entry.target.getBoundingClientRect().height}px`,
       );
   });
+const renderRadar = createRadarRenderer($('radar'));
 const resumeGate = createResumeGate();
 let profile = parseProfile(null),
   storageAvailable = true;
@@ -319,6 +322,15 @@ function input() {
 canvas.addEventListener('pointerdown', (e) => {
   if (game.state !== 'playing' || pointer) return;
   const rect = canvas.getBoundingClientRect();
+  if (
+    !canStartMovement(
+      e.pointerType,
+      e.clientX - rect.left,
+      rect.width,
+      profile.settings.leftHanded,
+    )
+  )
+    return;
   pointer = {
     id: e.pointerId,
     ox: e.clientX - rect.left,
@@ -761,7 +773,7 @@ function settingsScreen() {
   return renderSettings(menuContext());
 }
 function guideScreen() {
-  return `<div class="menu-page">${navigation()}${heading('READ THIS. STAY ALIVE.', 'FIELD MANUAL.')}<div class="guide-grid"><article><span>01</span><h2>Keep your thumb moving.</h2><p>Touch and drag anywhere on the field. A floating stick follows your thumb. Drag a little to walk, further to run. Weapons aim and fire automatically. A mouse drag works too.</p></article><article><span>02</span><h2>Use both hands.</h2><p>Keep moving with one thumb. Tap Dash with the other to slip through danger. The second button uses your equipped ability: blast, heal, overclock, freeze, or deploy a sentry. Both abilities recharge automatically. Change your active ability on your hero’s Loadout page.</p></article><article><span>03</span><h2>Become the hazard.</h2><p>Green cores grant experience. Each level offers a weapon specialization, a mutation, and room for a new weapon. Carry up to four weapons. Your last chosen weapon stays in focus. The build path shows its evolution key. Two rerolls per run. Supply caches restore health, award salvage, and draw in nearby cores.</p></article><article><span>04</span><h2>Get home.</h2><p>Titans arrive at 1:30, 3:30, and 6:30. Dodge their projectile rings and radiation warnings. At 8:00, follow the cyan marker. Stay inside the beacon for eight seconds to extract. Endless mode has no extraction. Once the beacon opens, you can choose Overtime: four more minutes for 75% bonus salvage, a full heal, and more titans.</p></article></div><div class="section-label">WEAPON EVOLUTIONS <span>LEVEL 5 + REQUIRED MUTATION</span></div><div class="evolution-list">${Object.entries(
+  return `<div class="menu-page">${navigation()}${heading('READ THIS. STAY ALIVE.', 'FIELD MANUAL.')}<div class="guide-grid"><article><span>01</span><h2>Keep your thumb moving.</h2><p>Touch and drag on the movement side, opposite the action buttons. A floating stick follows your thumb. Drag a little to walk, further to run. Weapons aim and fire automatically. A mouse drag works too.</p></article><article><span>02</span><h2>Use both hands.</h2><p>Keep moving with one thumb. Tap the larger, lower Dash button with the other to slip through danger. The smaller button above it uses your active ability. Your equipped ability can: blast, heal, overclock, freeze, or deploy a sentry. Both abilities recharge automatically; their remaining seconds appear above the buttons. The radar shows you as an arrow, infected as dots, titans as diamonds, supplies as squares, and objectives as flags. Distant objective flags stay on its rim. Change your active ability on your hero’s Loadout page.</p></article><article><span>03</span><h2>Become the hazard.</h2><p>Green cores grant experience. Each level offers a weapon specialization, a mutation, and room for a new weapon. Carry up to four weapons. Your last chosen weapon stays in focus. The build path shows its evolution key. Two rerolls per run. Supply caches restore health, award salvage, and draw in nearby cores.</p></article><article><span>04</span><h2>Get home.</h2><p>Titans arrive at 1:30, 3:30, and 6:30. Dodge their projectile rings and radiation warnings. At 8:00, follow the cyan marker. Stay inside the beacon for eight seconds to extract. Endless mode has no extraction. Once the beacon opens, you can choose Overtime: four more minutes for 75% bonus salvage, a full heal, and more titans.</p></article></div><div class="section-label">WEAPON EVOLUTIONS <span>LEVEL 5 + REQUIRED MUTATION</span></div><div class="evolution-list">${Object.entries(
     EVOLUTIONS,
   )
     .map(([id, e]) => [
@@ -825,6 +837,13 @@ function renderUI() {
   document.body.classList.toggle('left-handed', profile.settings.leftHanded);
   sound.setActive(playing);
   $('hud').hidden = !playing && !resumeGate.active;
+  $('field-radar').hidden = !profile.settings.radar;
+  $('move-hint').textContent =
+    `DRAG ${movementSide(profile.settings.leftHanded).toUpperCase()} SIDE TO MOVE`;
+  canvas.setAttribute(
+    'aria-label',
+    `Survival arena. Drag the ${movementSide(profile.settings.leftHanded)} side to move. Weapons fire automatically.`,
+  );
   $('resume-cover').hidden = !resumeGate.active;
   if ($('resume-count').textContent !== String(resumeGate.seconds))
     $('resume-count').textContent = resumeGate.seconds;
@@ -907,6 +926,7 @@ function renderUI() {
     }
   }
   if (!playing && !resumeGate.active) return;
+  if (profile.settings.radar) renderRadar(game);
   const p = game.player;
   $('operator-label').textContent = game.operator.name.toUpperCase();
   $('health-label').textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`;
@@ -961,16 +981,17 @@ function renderUI() {
     const el = $(id);
     el.style.setProperty('--cooldown', `${(timer / total) * 100}%`);
     el.classList.toggle('recharging', timer > 0);
-    el.querySelector('b').textContent = timer > 0 ? Math.ceil(timer) : '';
+    el.querySelector('b').textContent = '';
+    $(`${id}-readout`).textContent = cooldownReadout(timer);
     el.setAttribute(
       'aria-label',
       `${id === 'nova' ? branchForGame(game)?.name || abilityFor(game).name : 'Dash'}${timer > 0 ? `, ready in ${Math.ceil(timer)} seconds` : ', ready'}`,
     );
   }
   $('nova').querySelector('span').textContent = abilityFor(game).icon;
-  $('nova').querySelector('small').textContent = (
-    branchForGame(game)?.name || abilityFor(game).name
-  ).toUpperCase();
+  $('nova-readout-name').textContent =
+    branchForGame(game)?.name || abilityFor(game).name;
+  $('nova').querySelector('small').textContent = 'ABILITY';
   $('extract-hud').hidden =
     !game.extraction || distance(p, game.extraction) > game.extraction.radius;
   if (game.extraction) {
@@ -1019,6 +1040,7 @@ function frame(timestamp) {
   previousState = game.state;
   previousKills = game.kills;
   renderer.render(game, profile.settings, pointer, ambient);
+
   uiClock += dt;
   if (uiClock >= 0.1 || overlayStamp === '') {
     renderUI();

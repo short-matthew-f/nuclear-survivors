@@ -965,35 +965,6 @@ export function createRenderer(canvas) {
         );
       }
     }
-    if (settings.radar && g.state === 'playing') {
-      const x = settings.leftHanded ? width - 59 : 59,
-        y = height - 150,
-        radius = 34,
-        scale = 0.07;
-      ctx.save();
-      circle(ctx, x, y, radius, '#0b171ce6');
-      ring(ctx, x, y, radius, '#a1bc7a44');
-      ctx.beginPath();
-      ctx.arc(x, y, radius - 2, 0, TAU);
-      ctx.clip();
-      const dot = (target, color, size) => {
-        const dx = (target.x - p.x) * scale,
-          dy = (target.y - p.y) * scale;
-        circle(ctx, x + dx, y + dy, size, color);
-      };
-      for (const e of g.enemies)
-        dot(
-          e,
-          e.type === 'boss' ? '#efad7b' : e.elite ? '#f1cc72' : '#d67e70',
-          e.type === 'boss' ? 3 : 1.5,
-        );
-      for (const s of g.supplies) if (s.kind !== 'scrap') dot(s, '#e6cc93', 2);
-      if (g.fieldEvent)
-        dot(g.fieldEvent, FIELD_EVENTS[g.fieldEvent.kind].color, 3);
-      if (g.extraction) dot(g.extraction, '#a1f9d6', 4);
-      circle(ctx, x, y, 2.5, '#ecf3d9');
-      ctx.restore();
-    }
     if (pointer) {
       circle(ctx, pointer.ox, pointer.oy, 44, '#dcefc710');
       ring(ctx, pointer.ox, pointer.oy, 44, '#dcefc733');

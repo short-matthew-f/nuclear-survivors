@@ -54,3 +54,13 @@ Scripted checks covered 390×844 and 320×568 portrait choices, compact relics, 
 ![Fatal source explanation](ux-defeat.png)
 
 ![Resume orientation leaves the survivor visible](ux-resume.png)
+
+## Two-thumb layout (1.7)
+
+The radar moved out of the movement thumb area to the upper right in portrait and upper centre in short landscape. Dash occupies the outer resting position; the active ability sits above/inward on taller screens. A compact row on short screens keeps the survivor clear. Cooldowns appear above the buttons, buffs below health, and extraction progress between the thumb regions. Touch acquisition is limited to the movement side, while captured movement can cross the screen and mouse movement remains unrestricted. Left-handed mode mirrors movement and actions together.
+
+Scripted visual checks covered 390×844, 320×568, 844×390, and 568×320, including mirrored controls and illustrative thumb masks. The masks caught a readout/button overlap; the small portrait check caught central playfield obstruction and led to the compact row. The live app was checked for Dash and active-ability cooldown updates (5s and 18s), mirrored controls, radar toggle, and pause/resume. No browser warnings or errors were observed. The mask shapes are review aids, not measured human thumb footprints, and no physical-device ergonomics validation is claimed.
+
+![Reorganized controls and minimap](ux-thumb-layout.png)
+
+![Illustrative thumb-mask review, development fixture only](ux-thumb-check.png)

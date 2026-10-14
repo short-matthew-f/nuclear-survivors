@@ -4,7 +4,7 @@ A fullscreen, touch-first survival roguelite in a radioactive exclusion zone. Dr
 
 **[Play the game](https://short-matthew-f.github.io/nuclear-survivors/)**
 
-## Field edition 1.6
+## Field edition 1.7
 
 - Edge-to-edge Canvas gameplay with a compact HUD. No page header, footer, sidebar, or keyboard movement.
 - A floating analog thumbstick, multi-touch dash and selectable active abilities, automatic aiming, optional sound, and supported-device haptics.
@@ -22,7 +22,7 @@ A fullscreen, touch-first survival roguelite in a radioactive exclusion zone. Dr
 - Elite enemies, temporary overdrive, shield and vacuum pickups, a field radar, and a one-time overtime commitment for four extra minutes and 75% bonus salvage.
 - Original illustrated key art, nineteen hero/enemy/titan sprites plus a sentry sprite, eight environment props, and three painted ground textures. Source artwork and generation prompts are in `assets/art/`.
 - Five active abilities: Shockwave, Field mend, Overclock, Cryo field, and Sentry. Equip one alongside Dash. Abilities, weapon blueprints, and six heroes can be unlocked permanently with salvage. Eight research tracks improve later operations.
-- A procedural ambient score and weapon sounds, left-handed abilities, optional damage numbers and radar, and high/low rendering settings.
+- A procedural ambient score and weapon sounds, left-handed controls, optional damage numbers and radar, and high/low rendering settings.
 - Local daily best-score archive and export/import backups with replacement confirmation.
 - Automatic run checkpoints and saved progression, with corrupted-save recovery.
 - An installable PWA with offline precaching, maskable icons, device safe areas, and updates offered between runs. No external fonts, images, audio, or backend needed.
@@ -51,7 +51,7 @@ No environment variables, credentials, accounts, fixtures, or server are require
 
 ## Controls and objectives
 
-Drag anywhere on the field to move; drag slightly for slower movement. Use another finger to tap **Dash** or your equipped active ability. Change that ability and your starting weapon under Heroes → select a hero → Loadout. The same drag controls work with a mouse. Weapons automatically aim at the nearest enemy. The pause button freezes play; switching away from the app also pauses. Escape can toggle pause on desktop, but movement is entirely pointer-based.
+Drag the left side of the field to move; drag slightly for slower movement. Left-handed controls swap movement to the right and actions to the left. Use another finger to tap **Dash** or your equipped active ability. Change that ability and your starting weapon under Heroes → select a hero → Loadout. Mouse drags work anywhere on the field. Weapons automatically aim at the nearest enemy. The pause button freezes play; switching away from the app also pauses. Escape can toggle pause on desktop, but movement is entirely pointer-based.
 
 The bunker offers ten field challenges as free alternatives to scrap purchases. It also sells hero recruitment, weapon blueprints, active abilities, and permanent research. Weapon unlocks enter future operations’ level-up pools and can be equipped as a starting weapon. Recruitment grants its listed signature weapon and ability, usable by your other heroes too. Earlier saves retain all seven old weapons and recruited heroes receive their signature abilities; current saved operations keep their original Shockwave and weapon pool. New profiles begin with Rustline, Orbital saw, and Rad bloom.
 
@@ -95,7 +95,7 @@ Progress lives in local browser storage on that device and origin. Runs checkpoi
 - `src/expedition.js`: field events, elite conversion, mission objectives, and overtime.
 - `src/art.js`: absolute artwork URLs shared by CSS and Canvas under the Pages project scope.
 - `src/audio.js`: procedural score and sound synthesis, unlocked by the first user gesture.
-- `src/render.js`: Canvas world, illustrated sprite/prop atlas sampling, terrain patterns, radar, effects, and touchstick drawing.
+- `src/render.js`: Canvas world, illustrated sprite/prop atlas sampling, terrain patterns, effects, and touchstick drawing.
 - `src/main.js`: menu routing, HUD, pointer input, audio, PWA installation, updates, and app lifecycle.
 - `src/presentation.js`: pure menu rendering, hero pages, mission preparation, and debriefs.
 - `src/menu-model.js`: validated deployment selections, loadout summaries, goals, and research comparisons.
@@ -176,3 +176,11 @@ Enemy warnings use dashed outlines, active danger solid coral outlines, and patt
 Resuming starts a three-second orientation countdown while simulation stays paused. **Resume now** skips it; **Stay paused** cancels it. Backgrounding cancels the countdown. New operations and upgrade selection resume normally.
 
 `src/combat-ux.js` owns choice rendering, objective priority, and the UI-only resume clock. `src/damage.js` normalizes damage records and explanations; `src/threat-render.js` draws the late danger/received-hit layer. `tests/combat-ux.test.js` verifies collision attribution, revival/immunity, checkpoint migration, objective priority, and frozen resume timing. For visual checks, open `/tests/fixtures/combat-ux.html` during local development; this fixture never accesses saves and is excluded from the production build.
+
+## Two-thumb HUD (1.7)
+
+Dash is the larger outer button; the active ability sits above and inward in tall portrait layouts. Short screens use a compact row. Both have separate cooldown readouts above the buttons. Left-handed controls mirror the action cluster and movement acquisition region together. A movement finger can cross the screen after it is captured, but a missed touch on the action side cannot start movement. Mouse dragging remains available anywhere.
+
+The minimap sits above the thumbs: upper right in portrait, upper centre in short landscape. Its arrow marks the survivor, dots mark infected, diamonds mark titans, squares mark supplies, and flags mark objectives. Distant objectives stay on the rim. Health, timer, pause, objective, and radar form the upper HUD; buffs sit below health, extraction progress sits between the lower controls, and Overtime sits below the upper objective area. The radar toggle is preserved.
+
+`src/controls.js` owns movement-side acquisition and cooldown labels; `src/radar.js` owns radar projection and rendering on its dedicated HUD canvas. Tests in `tests/controls.test.js` verify mirrored touch acquisition, mouse compatibility, cooldown rounding, and off-map objective projection. The development combat fixture offers mirrored controls and illustrative thumb masks. Physical grip and simultaneous touch validation still require an iPhone.

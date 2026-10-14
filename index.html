@@ -58,6 +58,9 @@
           <div><i id="objective-progress"></i></div>
         </div>
         <div id="buff-status"></div>
+        <div id="field-radar" role="img" aria-label="Field radar">
+          <canvas id="radar" aria-hidden="true"></canvas><span>RADAR</span>
+        </div>
         <div id="combat-objective" hidden>
           <strong id="combat-objective-title"></strong
           ><span id="combat-objective-detail"></span>
@@ -69,14 +72,27 @@
           OVERTIME ↗ <small>+4 MIN · +75% SALVAGE</small>
         </button>
         <div id="touch-hint">
-          DRAG ANYWHERE TO MOVE <span>WEAPONS FIRE AUTOMATICALLY</span>
+          <strong id="move-hint">DRAG LEFT SIDE TO MOVE</strong
+          ><span>WEAPONS FIRE AUTOMATICALLY</span>
         </div>
-        <div class="abilities">
-          <button id="dash" class="ability" aria-label="Dash">
-            <span>⤳</span><small>DASH</small><b></b></button
-          ><button id="nova" class="ability nova" aria-label="Shockwave">
-            <span>✺</span><small>SHOCKWAVE</small><b></b>
-          </button>
+        <div class="abilities" aria-label="Combat controls">
+          <div class="ability-control dash-control">
+            <div class="ability-readout">
+              <span>Dash</span><strong id="dash-readout">Ready</strong>
+            </div>
+            <button id="dash" class="ability" aria-label="Dash">
+              <span>⤳</span><small>DASH</small><b></b>
+            </button>
+          </div>
+          <div class="ability-control nova-control">
+            <div class="ability-readout">
+              <span id="nova-readout-name">Shockwave</span
+              ><strong id="nova-readout">Ready</strong>
+            </div>
+            <button id="nova" class="ability nova" aria-label="Shockwave">
+              <span>✺</span><small>ABILITY</small><b></b>
+            </button>
+          </div>
         </div>
         <div id="extract-hud" hidden>
           EXTRACTING <span id="extract-percent">0%</span>

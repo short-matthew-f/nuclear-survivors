@@ -4356,3 +4356,235 @@ label {
     max-width: 300px;
   }
 }
+
+/* Two thumbs own the lower corners; navigation and objectives stay above them. */
+#field-radar {
+  position: absolute;
+  top: calc(max(16px, env(safe-area-inset-top)) + 89px);
+  right: max(15px, env(safe-area-inset-right));
+  width: 88px;
+  padding: 3px 3px 6px;
+  background: #20352de8;
+  border: 1px solid #90aa8377;
+  border-radius: 12px;
+  text-align: center;
+}
+#radar {
+  display: block;
+  width: 80px;
+  height: 80px;
+}
+#field-radar > span {
+  display: block;
+  font:
+    600 9px/1.1 Arial,
+    sans-serif;
+  letter-spacing: 1px;
+  color: #d6e5cc;
+}
+#combat-objective {
+  max-width: min(260px, calc(100% - 133px));
+}
+.abilities {
+  right: max(20px, env(safe-area-inset-right));
+  left: auto;
+  bottom: calc(max(24px, env(safe-area-inset-bottom)) + 36px);
+  width: 150px;
+  height: 210px;
+  display: block;
+  pointer-events: none;
+}
+.ability-control {
+  position: absolute;
+  pointer-events: none;
+}
+.dash-control {
+  right: 0;
+  bottom: 0;
+}
+.nova-control {
+  right: 18px;
+  bottom: 112px;
+}
+#dash {
+  width: 80px;
+  height: 80px;
+  border: 2px solid #e0eeb5;
+  background: #e1efbd;
+}
+#nova {
+  width: 68px;
+  height: 68px;
+  border: 2px solid #a5c9bd;
+  background: #c2dfd0;
+}
+#dash > span {
+  font-size: 34px;
+}
+#nova > span {
+  font-size: 29px;
+}
+.ability small {
+  font:
+    700 10px/1 Arial,
+    sans-serif;
+  letter-spacing: 0.4px;
+}
+.ability-readout {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 112px;
+  min-width: 76px;
+  padding: 5px 8px;
+  background: #1b3028ed;
+  border: 1px solid #89a77a77;
+  border-radius: 8px;
+  text-align: center;
+  color: #eff4dd;
+  font:
+    11px/1.25 Arial,
+    sans-serif;
+}
+.ability-readout span {
+  display: block;
+  max-width: 96px;
+  overflow-wrap: anywhere;
+  color: #cfdfc4;
+}
+.ability-readout strong {
+  display: block;
+  font-size: 12px;
+  margin-top: 2px;
+}
+.ability b {
+  display: none;
+}
+.left-handed .abilities {
+  right: auto;
+  left: max(20px, env(safe-area-inset-left));
+}
+.left-handed .dash-control {
+  left: 0;
+  right: auto;
+}
+.left-handed .nova-control {
+  left: 18px;
+  right: auto;
+}
+#buff-status {
+  top: calc(max(16px, env(safe-area-inset-top)) + 73px);
+  bottom: auto;
+  left: max(15px, env(safe-area-inset-left));
+  font:
+    700 11px/1 Arial,
+    sans-serif;
+}
+#hit-notice {
+  top: 57%;
+}
+#overtime {
+  bottom: auto;
+  top: calc(max(16px, env(safe-area-inset-top)) + 204px);
+  left: 50%;
+  max-width: calc(100% - 32px);
+  min-height: 44px;
+  font-size: 11px;
+}
+#move-hint {
+  display: block;
+  font-weight: 400;
+}
+#extract-hud {
+  bottom: calc(max(24px, env(safe-area-inset-bottom)) + 42px);
+  left: 50%;
+  width: min(190px, calc(100% - 220px));
+  min-width: 80px;
+  padding: 8px;
+  font-size: 11px;
+}
+@media (min-width: 650px) and (max-height: 500px) {
+  .abilities {
+    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 16px);
+    width: 220px;
+    height: 120px;
+  }
+  .nova-control {
+    right: 104px;
+    bottom: 12px;
+  }
+  .left-handed .nova-control {
+    left: 104px;
+    right: auto;
+  }
+  #field-radar {
+    width: 80px;
+  }
+  #radar {
+    width: 72px;
+    height: 72px;
+  }
+  #overtime {
+    top: calc(max(16px, env(safe-area-inset-top)) + 160px);
+  }
+  #extract-hud {
+    bottom: 30px;
+    width: 190px;
+  }
+}
+.abilities {
+  width: 210px;
+}
+.nova-control {
+  right: 82px;
+}
+.left-handed .nova-control {
+  left: 82px;
+  right: auto;
+}
+@media (min-width: 650px) and (max-height: 500px) {
+  .abilities {
+    width: 220px;
+  }
+  .nova-control {
+    right: 104px;
+  }
+  .left-handed .nova-control {
+    left: 104px;
+  }
+}
+@media (max-height: 650px) {
+  .abilities {
+    width: 220px;
+    height: 120px;
+  }
+  .nova-control {
+    right: 104px;
+    bottom: 12px;
+  }
+  .left-handed .nova-control {
+    left: 104px;
+    right: auto;
+  }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .abilities {
+    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 16px);
+  }
+  #field-radar {
+    top: max(16px, env(safe-area-inset-top));
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: 80px;
+  }
+  #radar {
+    width: 72px;
+    height: 72px;
+  }
+  #combat-objective {
+    max-width: min(260px, calc(50% - 64px));
+  }
+}

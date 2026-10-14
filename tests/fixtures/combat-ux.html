@@ -58,6 +58,9 @@
           <div><i id="objective-progress"></i></div>
         </div>
         <div id="buff-status"></div>
+        <div id="field-radar" role="img" aria-label="Field radar">
+          <canvas id="radar" aria-hidden="true"></canvas><span>RADAR</span>
+        </div>
         <div id="combat-objective" hidden>
           <strong id="combat-objective-title"></strong
           ><span id="combat-objective-detail"></span>
@@ -69,14 +72,27 @@
           OVERTIME ↗ <small>+4 MIN · +75% SALVAGE</small>
         </button>
         <div id="touch-hint">
-          DRAG ANYWHERE TO MOVE <span>WEAPONS FIRE AUTOMATICALLY</span>
+          <strong id="move-hint">DRAG LEFT SIDE TO MOVE</strong
+          ><span>WEAPONS FIRE AUTOMATICALLY</span>
         </div>
-        <div class="abilities">
-          <button id="dash" class="ability" aria-label="Dash">
-            <span>⤳</span><small>DASH</small><b></b></button
-          ><button id="nova" class="ability nova" aria-label="Shockwave">
-            <span>✺</span><small>SHOCKWAVE</small><b></b>
-          </button>
+        <div class="abilities" aria-label="Combat controls">
+          <div class="ability-control dash-control">
+            <div class="ability-readout">
+              <span>Dash</span><strong id="dash-readout">Ready</strong>
+            </div>
+            <button id="dash" class="ability" aria-label="Dash">
+              <span>⤳</span><small>DASH</small><b></b>
+            </button>
+          </div>
+          <div class="ability-control nova-control">
+            <div class="ability-readout">
+              <span id="nova-readout-name">Shockwave</span
+              ><strong id="nova-readout">Ready</strong>
+            </div>
+            <button id="nova" class="ability nova" aria-label="Shockwave">
+              <span>✺</span><small>ABILITY</small><b></b>
+            </button>
+          </div>
         </div>
         <div id="extract-hud" hidden>
           EXTRACTING <span id="extract-percent">0%</span>
@@ -103,6 +119,43 @@
         New field build ready.<button id="apply-update">UPDATE</button>
       </div>
     </main>
+    <div
+      id="thumb-masks"
+      hidden
+      style="position: fixed; inset: 0; pointer-events: none; z-index: 10"
+    >
+      <span
+        style="
+          position: absolute;
+          left: 22px;
+          bottom: 40px;
+          width: 80px;
+          height: 100px;
+          border-radius: 50%;
+          background: #eccaa5c9;
+          border: 2px dashed #372d23;
+          display: grid;
+          place-items: center;
+          color: #372d23;
+        "
+        >L thumb</span
+      ><span
+        style="
+          position: absolute;
+          right: 22px;
+          bottom: 40px;
+          width: 80px;
+          height: 100px;
+          border-radius: 50%;
+          background: #eccaa5c9;
+          border: 2px dashed #372d23;
+          display: grid;
+          place-items: center;
+          color: #372d23;
+        "
+        >R thumb</span
+      >
+    </div>
     <nav
       id="fixture-nav"
       style="
@@ -111,6 +164,8 @@
         left: 5px;
         z-index: 15;
         display: flex;
+        flex-wrap: wrap;
+        right: 5px;
         gap: 4px;
       "
     >
@@ -118,6 +173,8 @@
       ><button data-scene="relic">Relic</button
       ><button data-scene="busy">Busy field</button
       ><button data-scene="defeat">Defeat</button
+      ><button id="fixture-mirror">Mirror hands</button
+      ><button id="fixture-thumbs">Thumb masks</button
       ><button id="fixture-hide">Hide fixture controls</button>
     </nav>
     <script type="module">
@@ -129,6 +186,7 @@
         hurtPlayer,
       } from '/src/game.js';
       import { createRenderer } from '/src/render.js';
+      import { createRadarRenderer } from '/src/radar.js';
       import { prepareBoss } from '/src/bosses.js';
       import { freshProfile } from '/src/profile.js';
       import { renderResults } from '/src/presentation.js';
@@ -140,9 +198,10 @@
       import { UPGRADES } from '/src/content.js';
       import { beginEvent } from '/src/expedition.js';
       import { RELICS } from '/src/relics.js';
-      const renderer = createRenderer(document.querySelector('canvas'));
+      const renderer = createRenderer(document.querySelector('#game'));
+      const radar = createRadarRenderer(document.querySelector('#radar'));
       new ResizeObserver(() => renderer.resize('high')).observe(
-        document.querySelector('canvas'),
+        document.querySelector('#game'),
       );
       renderer.resize('high');
       let g,
@@ -247,11 +306,17 @@
       }
       document.querySelector('#fixture-nav').onclick = (e) => {
         if (e.target.dataset.scene) load(e.target.dataset.scene);
+        if (e.target.id === 'fixture-mirror')
+          document.body.classList.toggle('left-handed');
+        if (e.target.id === 'fixture-thumbs')
+          document.querySelector('#thumb-masks').hidden =
+            !document.querySelector('#thumb-masks').hidden;
         if (e.target.id === 'fixture-hide')
           document.querySelector('#fixture-nav').hidden = true;
       };
       load(new URLSearchParams(location.search).get('scene') || 'upgrade');
       function frame() {
+        if (scene === 'busy') radar(g);
         renderer.render(
           g,
           { quality: 'high', numbers: true, shake: false },
