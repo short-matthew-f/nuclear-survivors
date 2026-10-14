@@ -152,6 +152,9 @@ test('owned equipment filters keep the equipped item first and shared buying is 
   const armory = renderBunker(c);
   assert.ok(armory.includes('data-action="unlock-weapon"'));
   assert.ok(!armory.includes('data-action="buy-weapon"'));
+  assert.ok(!armory.includes('Available to every hero'));
+  assert.ok(armory.includes('Shared unlocks for every hero'));
+  assert.ok(armory.includes('Owned'));
 });
 test('the main navigation has four stable labeled destinations and one current marker', () => {
   const html = rootNavigation('heroes');
