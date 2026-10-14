@@ -12,6 +12,11 @@ import {
   LEGACY_WEAPONS,
   ABILITIES,
 } from './content.js';
+import {
+  restoreUnlockProgress,
+  awardFieldUnlocks,
+  grantReward,
+} from './unlocks.js';
 import { missionReady } from './expedition.js';
 export const SAVE_KEY = 'nuclear-survivors-v2';
 export function freshProfile() {
@@ -23,6 +28,7 @@ export function freshProfile() {
     weapons: [...FREE_WEAPONS],
     abilities: ['shockwave'],
     loadouts: {},
+    unlockProgress: {},
     zones: ['forest'],
     achievements: [],
     runs: 0,
@@ -166,6 +172,7 @@ export function parseProfile(raw) {
       if (typeof data.settings?.[k] === 'boolean')
         p.settings[k] = data.settings[k];
     p.settings.quality = data.settings?.quality === 'low' ? 'low' : 'high';
+    restoreUnlockProgress(p, data.unlockProgress);
     return p;
   } catch {
     return freshProfile();
@@ -201,11 +208,7 @@ export function purchase(profile, kind, id) {
   profile.scrap -= cost;
   if (kind === 'research') profile.research[id] = rank + 1;
   else if (kind === 'operator') {
-    profile.operators.push(id);
-    if (!profile.weapons.includes(item.weapon))
-      profile.weapons.push(item.weapon);
-    if (!profile.abilities.includes(item.ability))
-      profile.abilities.push(item.ability);
+    grantReward(profile, { kind: 'operator', target: id });
   } else
     profile[
       { zone: 'zones', weapon: 'weapons', ability: 'abilities' }[kind]
@@ -280,7 +283,8 @@ export function settleRun(profile, game) {
     zone: game.zone.id,
   });
   profile.history = profile.history.slice(0, 8);
-  return { earned, unlocked, chapterCompleted };
+  const fieldUnlocks = awardFieldUnlocks(profile, game);
+  return { earned, unlocked, chapterCompleted, fieldUnlocks };
 }
 
 export function selectPerk(profile, id) {

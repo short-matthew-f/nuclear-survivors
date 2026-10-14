@@ -53,7 +53,7 @@ No environment variables, credentials, accounts, fixtures, or server are require
 
 Drag anywhere on the field to move; drag slightly for slower movement. Use another finger to tap **Dash** or your equipped active ability. Change that ability and your starting weapon per hero in the bunker. The same drag controls work with a mouse. Weapons automatically aim at the nearest enemy. The pause button freezes play; switching away from the app also pauses. Escape can toggle pause on desktop, but movement is entirely pointer-based.
 
-The bunker sells hero recruitment, weapon blueprints, active abilities, and permanent research. Weapon unlocks enter future operations’ level-up pools and can be equipped as a starting weapon. Recruitment grants its listed signature weapon and ability, usable by your other heroes too. Earlier saves retain all seven old weapons and recruited heroes receive their signature abilities; current saved operations keep their original Shockwave and weapon pool. New profiles begin with Rustline, Orbital saw, and Rad bloom.
+The bunker offers ten field challenges as free alternatives to scrap purchases. It also sells hero recruitment, weapon blueprints, active abilities, and permanent research. Weapon unlocks enter future operations’ level-up pools and can be equipped as a starting weapon. Recruitment grants its listed signature weapon and ability, usable by your other heroes too. Earlier saves retain all seven old weapons and recruited heroes receive their signature abilities; current saved operations keep their original Shockwave and weapon pool. New profiles begin with Rustline, Orbital saw, and Rad bloom.
 
 Green cores award experience. Pick one upgrade at each level. Weapon ranks change volley patterns, escort/blade counts, penetration, mine clusters, range, or firing cadence. Cards preview the exact next pattern and show the evolution key. Choosing a weapon makes it your focus for subsequent offers. Weapon upgrades reset their fire timer, and evolutions produce a visible transformation burst. Supply caches restore 15 health, award salvage, and pull cores closer. Medkits restore 35 health. Titan relics grant a bonus upgrade and salvage. Follow the on-field marker to extraction, an active field event, a boss relic, or a supply cache. Enter an event’s marked circle and hold there until its progress fills; convoys require clearing their elite guards first.
 
@@ -113,3 +113,22 @@ GitHub Pages uses **GitHub Actions** as its source. Deployment permissions are r
 ## Current limits
 
 Terrain props are decorative and passable; this is an open-arena survival game. Character artwork uses single painted poses with procedural movement, hit feedback, and ability effects. There is no multiplayer, cloud sync, online leaderboard, or app-store package. Offline launch was verified by stopping the production server, reloading the cached app, and starting a run. Touch interaction has been checked in a browser viewport; physical iOS/Android installation, simultaneous multi-touch, battery use, and haptics still need device testing.
+
+### Field unlocks
+
+Bunker → Unlocks shows requirements, saved progress, rewards, and the alternative scrap price. Feats are banked automatically when an operation ends, even on defeat; a feat never requires a second purchase. Hero rewards include their signature weapon and ability for all heroes. Previously purchased content stays owned. Existing achievements, best survival time, recent records, and enemy kill totals credit old saves; unrecorded weapon ranks are not guessed. Daily operations retain their fixed loadout while still contributing to field feats.
+
+| Free reward                          | Field feat                                  |
+| ------------------------------------ | ------------------------------------------- |
+| Spark + Arc coil + Overclock         | Reach Rad bloom rank 3 in one operation     |
+| Bastion                              | Defeat a titan                              |
+| Morrow + Field mend                  | Complete a survivor rescue                  |
+| Rook + Watchdog + Sentry             | Carry four weapon families                  |
+| Vesper + Cinder shotgun + Cryo field | Defeat 50 Strays across operations          |
+| Arc coil                             | Defeat 100 infected in one operation        |
+| Scorched earth                       | Survive two minutes in one operation        |
+| Scrap discus                         | Evolve a weapon                             |
+| Furnace                              | Defeat 20 Cinder blisters across operations |
+| Cryo field                           | Defeat 20 Graveclaws across operations      |
+
+Design research and rationale: [docs/unlock-design.md](docs/unlock-design.md). `src/unlocks.js` owns the shared definitions, reward bundles, progress migration, and settlement rules.

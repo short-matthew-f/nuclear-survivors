@@ -40,6 +40,12 @@ import {
   equipLoadout,
 } from './profile.js';
 import { upgradePreview, evolutionProgress, WEAPON_LIMIT } from './build.js';
+import {
+  FIELD_UNLOCKS,
+  unlockReward,
+  ownsReward,
+  unlockHint,
+} from './unlocks.js';
 import { artUrl } from './art.js';
 import { createRenderer } from './render.js';
 import { commitOvertime, missionGoals, missionReady } from './expedition.js';
@@ -67,7 +73,7 @@ let operator = 'nomad',
   chapterId =
     CHAPTERS.find((c) => !profile.chapters.includes(c.id))?.id ||
     CHAPTERS[0].id,
-  shopTab = 'heroes',
+  shopTab = 'unlocks',
   screen = 'home',
   game = createGame(),
   pointer = null,
@@ -364,7 +370,7 @@ $('overlay').addEventListener('click', async (e) => {
   } else if (act === 'operator') {
     if (!profile.operators.includes(value)) {
       if (!purchase(profile, 'operator', value)) {
-        toast('Recover more salvage to recruit this operator.');
+        toast(unlockHint(profile, 'operator', value));
         return;
       }
       save();
@@ -435,7 +441,14 @@ $('overlay').addEventListener('click', async (e) => {
     menu('settings');
   } else if (act === 'shop-tab') {
     if (
-      ['heroes', 'weapons', 'abilities', 'research', 'kits'].includes(value)
+      [
+        'unlocks',
+        'heroes',
+        'weapons',
+        'abilities',
+        'research',
+        'kits',
+      ].includes(value)
     ) {
       shopTab = value;
       menu('workshop');
@@ -445,7 +458,7 @@ $('overlay').addEventListener('click', async (e) => {
       !profile.operators.includes(value) &&
       !purchase(profile, 'operator', value)
     ) {
-      toast('Recover more salvage to recruit this hero.');
+      toast(unlockHint(profile, 'operator', value));
       return;
     }
     operator = value;
@@ -520,7 +533,7 @@ $('overlay').addEventListener('click', async (e) => {
 function homeScreen() {
   const o = OPERATORS.find((o) => o.id === operator),
     z = ZONES.find((z) => z.id === zone);
-  return `<div class="home"><div class="home-main"><div class="brand-mark">☢ <small>FIELD BUILD 1.2</small></div>${heading('A SURVIVAL ROGUELITE', 'NUCLEAR<br><em>SURVIVORS.</em>', 'The world ended. Your shift didn’t.')}<div class="home-actions">${savedRun ? action(`RESUME ${formatTime(savedRun.time)} OPERATION <span>↗</span>`, 'restore') + action('NEW OPERATION', 'start', 'secondary') : action('ENTER THE ZONE <span>↗</span>', 'start')}${action('THE BUNKER <span>◈</span>', 'workshop', 'secondary')}</div><div class="home-links">${action('FIELD GUIDE', 'guide', 'text-button')}${action('CODEX', 'codex', 'text-button')}${action('RUN ARCHIVE', 'records', 'text-button')}${action('SETTINGS', 'settings', 'text-button')}</div><div class="install-row">${action('⊕ INSTALL GAME', 'install', 'text-button')}<span>TOUCH TO MOVE · AUTO COMBAT</span></div></div><div class="deployment-panel"><div class="panel-heading"><span>PREPARE TO DEPLOY</span><span class="currency">◈ ${profile.scrap}</span></div><label>01 / OPERATOR</label><div class="operator-options">${OPERATORS.map((item) => `<button class="operator-option ${operator === item.id ? 'selected' : ''}" data-action="operator" data-value="${item.id}" aria-pressed="${operator === item.id}"><span class="operator-art art-${item.id}" aria-hidden="true"></span><strong>${item.name}</strong><small>${profile.operators.includes(item.id) ? item.role : `◈ ${item.cost} TO RECRUIT`}</small></button>`).join('')}</div><p class="selection-description">${o.description}</p><div class="selected-kit"><strong>${WEAPONS[loadoutFor(profile, operator).weapon].name}</strong><span>+ ${ABILITIES.find((a) => a.id === loadoutFor(profile, operator).ability).name}</span>${action('CHANGE LOADOUT ↗', 'workshop', 'text-button')}</div><label>02 / DROP ZONE</label><div class="zone-options">${ZONES.map((item) => `<button class="zone-option ${zone === item.id ? 'selected' : ''}" data-action="zone" data-value="${item.id}" aria-pressed="${zone === item.id}"><span class="zone-swatch ${item.id}"></span><span><strong>${item.name}</strong><small>${profile.zones.includes(item.id) ? item.label : `LOCKED · ◈ ${item.cost}`}</small></span><b>${zone === item.id ? '↗' : '+'}</b></button>`).join('')}</div><label>03 / OPERATION</label><div class="mode-options">${[
+  return `<div class="home"><div class="home-main"><div class="brand-mark">☢ <small>FIELD BUILD 1.3</small></div>${heading('A SURVIVAL ROGUELITE', 'NUCLEAR<br><em>SURVIVORS.</em>', 'The world ended. Your shift didn’t.')}<div class="home-actions">${savedRun ? action(`RESUME ${formatTime(savedRun.time)} OPERATION <span>↗</span>`, 'restore') + action('NEW OPERATION', 'start', 'secondary') : action('ENTER THE ZONE <span>↗</span>', 'start')}${action('THE BUNKER <span>◈</span>', 'workshop', 'secondary')}</div><div class="home-links">${action('FIELD GUIDE', 'guide', 'text-button')}${action('CODEX', 'codex', 'text-button')}${action('RUN ARCHIVE', 'records', 'text-button')}${action('SETTINGS', 'settings', 'text-button')}</div><div class="install-row">${action('⊕ INSTALL GAME', 'install', 'text-button')}<span>TOUCH TO MOVE · AUTO COMBAT</span></div></div><div class="deployment-panel"><div class="panel-heading"><span>PREPARE TO DEPLOY</span><span class="currency">◈ ${profile.scrap}</span></div><label>01 / OPERATOR</label><div class="operator-options">${OPERATORS.map((item) => `<button class="operator-option ${operator === item.id ? 'selected' : ''}" data-action="operator" data-value="${item.id}" aria-pressed="${operator === item.id}"><span class="operator-art art-${item.id}" aria-hidden="true"></span><strong>${item.name}</strong><small>${profile.operators.includes(item.id) ? item.role : `◈ ${item.cost} TO RECRUIT`}</small></button>`).join('')}</div><p class="selection-description">${o.description}</p><div class="selected-kit"><strong>${WEAPONS[loadoutFor(profile, operator).weapon].name}</strong><span>+ ${ABILITIES.find((a) => a.id === loadoutFor(profile, operator).ability).name}</span>${action('CHANGE LOADOUT ↗', 'workshop', 'text-button')}</div><label>02 / DROP ZONE</label><div class="zone-options">${ZONES.map((item) => `<button class="zone-option ${zone === item.id ? 'selected' : ''}" data-action="zone" data-value="${item.id}" aria-pressed="${zone === item.id}"><span class="zone-swatch ${item.id}"></span><span><strong>${item.name}</strong><small>${profile.zones.includes(item.id) ? item.label : `LOCKED · ◈ ${item.cost}`}</small></span><b>${zone === item.id ? '↗' : '+'}</b></button>`).join('')}</div><label>03 / OPERATION</label><div class="mode-options">${[
     ['campaign', 'STORY'],
     ['extraction', 'EXTRACT'],
     ['endless', 'ENDLESS'],
@@ -536,7 +549,7 @@ function homeScreen() {
     )
     .join(
       '',
-    )}</div><p class="selection-description">${mode === 'campaign' ? `Five chapters. A world worth saving. ${profile.chapters.length} / ${CHAPTERS.length} complete.` : mode === 'daily' ? 'A shared daily seed. Nomad. Red Forest. No bunker bonuses. Local scores only.' : mode === 'endless' ? 'No rescue is coming. Survive as long as you can.' : 'Eight minutes. Three titans. Hold the extraction beacon to get home.'}</p>${mode !== 'daily' && mode !== 'campaign' ? `<label>04 / THREAT LEVEL</label><div class="difficulty-options">${DIFFICULTIES.map((d) => action(d.name, 'difficulty', difficulty === d.id ? 'selected' : '', `data-value="${d.id}" ${d.id === 'veteran' && !profile.wins ? 'disabled' : ''}`)).join('')}</div><p class="selection-description">${DIFFICULTIES.find((d) => d.id === difficulty).description}</p>` : ''}<div class="sector-note"><i></i>${z.subtitle}<span>BUILD 1.2</span></div></div></div>`;
+    )}</div><p class="selection-description">${mode === 'campaign' ? `Five chapters. A world worth saving. ${profile.chapters.length} / ${CHAPTERS.length} complete.` : mode === 'daily' ? 'A shared daily seed. Nomad. Red Forest. No bunker bonuses. Local scores only.' : mode === 'endless' ? 'No rescue is coming. Survive as long as you can.' : 'Eight minutes. Three titans. Hold the extraction beacon to get home.'}</p>${mode !== 'daily' && mode !== 'campaign' ? `<label>04 / THREAT LEVEL</label><div class="difficulty-options">${DIFFICULTIES.map((d) => action(d.name, 'difficulty', difficulty === d.id ? 'selected' : '', `data-value="${d.id}" ${d.id === 'veteran' && !profile.wins ? 'disabled' : ''}`)).join('')}</div><p class="selection-description">${DIFFICULTIES.find((d) => d.id === difficulty).description}</p>` : ''}<div class="sector-note"><i></i>${z.subtitle}<span>BUILD 1.3</span></div></div></div>`;
 }
 function campaignScreen() {
   const chapter = CHAPTERS.find((c) => c.id === chapterId) || CHAPTERS[0];
@@ -573,10 +586,29 @@ function codexScreen() {
       '',
     )}</div><p class="subtle">Elite infected have an amber ring, tougher armor, and carry extra salvage. Dash through gaps and use Shockwave to clear hostile projectiles.</p></div>`;
 }
+function unlocksScreen() {
+  const remaining = FIELD_UNLOCKS.filter((c) => !ownsReward(profile, c));
+  return `<p class="subtle">${remaining.length} field rewards remaining. Complete a feat to earn its reward free, or spend scrap in the other tabs to unlock it sooner. Your progress is banked when an operation ends, even on defeat.</p><div class="unlock-grid">${[
+    ...FIELD_UNLOCKS,
+  ]
+    .sort(
+      (a, b) => Number(ownsReward(profile, a)) - Number(ownsReward(profile, b)),
+    )
+    .map((c) => {
+      const reward = unlockReward(c),
+        owned = ownsReward(profile, c),
+        progress = profile.unlockProgress[c.id] || 0;
+      const hero =
+        c.kind === 'operator' ? OPERATORS.find((o) => o.id === c.target) : null;
+      return `<article class="unlock-card ${owned ? 'earned' : ''}"><div class="eyebrow">${owned ? 'UNLOCKED' : c.kind === 'operator' ? 'HERO + SIGNATURE GEAR' : c.kind.toUpperCase()}</div><h2>${reward.name}</h2><strong>${c.title}</strong><p>${c.description}</p>${hero ? `<div class="store-includes">INCLUDES ${WEAPONS[hero.weapon].name} + ${ABILITIES.find((a) => a.id === hero.ability).name}</div>` : ''}<progress value="${progress}" max="${c.goal}" aria-label="${reward.name} unlock progress"></progress><div class="unlock-progress"><span>${progress} / ${c.goal}${c.unit ? ' SECONDS' : ''}</span><span>${progress >= c.goal ? 'FEAT COMPLETE' : owned ? 'ALREADY OWNED' : 'EARN FREE'}</span></div>${action(owned ? 'VIEW EQUIPMENT ↗' : `VIEW SCRAP OPTION · ◈ ${reward.cost}`, 'shop-tab', 'secondary', `data-value="${{ operator: 'heroes', weapon: 'weapons', ability: 'abilities' }[c.kind]}"`)}</article>`;
+    })
+    .join('')}</div>`;
+}
 function workshopScreen() {
   const loadout = loadoutFor(profile, operator),
     hero = OPERATORS.find((o) => o.id === operator);
   const tabs = [
+    ['unlocks', 'UNLOCKS'],
     ['heroes', 'HEROES'],
     ['weapons', 'WEAPONS'],
     ['abilities', 'ABILITIES'],
@@ -584,10 +616,11 @@ function workshopScreen() {
     ['kits', 'KITS'],
   ];
   let content = '';
+  if (shopTab === 'unlocks') content = unlocksScreen();
   if (shopTab === 'heroes')
     content = `<div class="store-grid">${OPERATORS.map((o) => {
       const owned = profile.operators.includes(o.id);
-      return `<article class="store-card ${o.id === operator ? 'selected' : ''}"><div class="store-portrait operator-art art-${o.id}" aria-hidden="true"></div><div class="eyebrow">${o.role}</div><h2>${o.name}</h2><p>${o.description}</p><div class="store-includes">INCLUDES ${WEAPONS[o.weapon].name} + ${ABILITIES.find((a) => a.id === o.ability).name}</div>${action(o.id === operator ? 'SELECTED' : owned ? 'SELECT HERO ↗' : `RECRUIT ◈ ${o.cost}`, 'recruit', 'secondary', `data-value="${o.id}" ${o.id === operator || (!owned && profile.scrap < o.cost) ? 'disabled' : ''}`)}</article>`;
+      return `<article class="store-card ${o.id === operator ? 'selected' : ''}"><div class="store-portrait operator-art art-${o.id}" aria-hidden="true"></div><div class="eyebrow">${o.role}</div><h2>${o.name}</h2><p>${o.description}</p><p class="unlock-hint">${owned ? 'RECRUITED · SIGNATURE GEAR AVAILABLE' : `EARN FREE: ${unlockHint(profile, 'operator', o.id)}`}</p><div class="store-includes">INCLUDES ${WEAPONS[o.weapon].name} + ${ABILITIES.find((a) => a.id === o.ability).name}</div>${action(o.id === operator ? 'SELECTED' : owned ? 'SELECT HERO ↗' : `RECRUIT ◈ ${o.cost}`, 'recruit', 'secondary', `data-value="${o.id}" ${o.id === operator || (!owned && profile.scrap < o.cost) ? 'disabled' : ''}`)}</article>`;
     }).join('')}</div>`;
   if (shopTab === 'weapons')
     content = `<p class="subtle">Unlock weapons for level-up offers. Equip one as ${hero.name}’s starting weapon. Four weapon slots per operation.</p><div class="store-grid">${Object.entries(
@@ -596,7 +629,7 @@ function workshopScreen() {
       .map(([id, w]) => {
         const owned = profile.weapons.includes(id),
           equipped = loadout.weapon === id;
-        return `<article class="store-card ${equipped ? 'selected' : ''}"><span class="store-symbol" style="color:${w.color}">${w.icon}</span><div class="eyebrow">${owned ? 'UNLOCKED' : 'BUNKER BLUEPRINT'}</div><h2>${w.name}</h2><p>${w.description}</p><div class="store-includes">EVOLVES INTO ${EVOLUTIONS[id].name}</div>${action(equipped ? 'STARTING WEAPON' : owned ? 'EQUIP STARTING WEAPON ↗' : `UNLOCK & EQUIP ◈ ${WEAPON_COSTS[id]}`, owned ? 'equip-weapon' : 'buy-weapon', 'secondary', `data-value="${id}" ${equipped || (!owned && profile.scrap < WEAPON_COSTS[id]) ? 'disabled' : ''}`)}</article>`;
+        return `<article class="store-card ${equipped ? 'selected' : ''}"><span class="store-symbol" style="color:${w.color}">${w.icon}</span><div class="eyebrow">${owned ? 'UNLOCKED' : 'BUNKER BLUEPRINT'}</div><h2>${w.name}</h2><p>${w.description}</p><div class="store-includes">EVOLVES INTO ${EVOLUTIONS[id].name}</div>${!owned ? `<p class="unlock-hint">${unlockHint(profile, 'weapon', id)}</p>` : ''}${action(equipped ? 'STARTING WEAPON' : owned ? 'EQUIP STARTING WEAPON ↗' : `UNLOCK & EQUIP ◈ ${WEAPON_COSTS[id]}`, owned ? 'equip-weapon' : 'buy-weapon', 'secondary', `data-value="${id}" ${equipped || (!owned && profile.scrap < WEAPON_COSTS[id]) ? 'disabled' : ''}`)}</article>`;
       })
       .join('')}</div>`;
   if (shopTab === 'abilities')
@@ -604,7 +637,7 @@ function workshopScreen() {
       (a) => {
         const owned = profile.abilities.includes(a.id),
           equipped = loadout.ability === a.id;
-        return `<article class="store-card ${equipped ? 'selected' : ''}"><span class="store-symbol">${a.icon}</span><div class="eyebrow">${a.cooldown}s BASE COOLDOWN</div><h2>${a.name}</h2><p>${a.description}</p>${action(equipped ? 'ACTIVE ABILITY' : owned ? 'EQUIP ABILITY ↗' : `UNLOCK & EQUIP ◈ ${a.cost}`, owned ? 'equip-ability' : 'buy-ability', 'secondary', `data-value="${a.id}" ${equipped || (!owned && profile.scrap < a.cost) ? 'disabled' : ''}`)}</article>`;
+        return `<article class="store-card ${equipped ? 'selected' : ''}"><span class="store-symbol">${a.icon}</span><div class="eyebrow">${a.cooldown}s BASE COOLDOWN</div><h2>${a.name}</h2><p>${a.description}</p>${!owned ? `<p class="unlock-hint">${unlockHint(profile, 'ability', a.id)}</p>` : ''}${action(equipped ? 'ACTIVE ABILITY' : owned ? 'EQUIP ABILITY ↗' : `UNLOCK & EQUIP ◈ ${a.cost}`, owned ? 'equip-ability' : 'buy-ability', 'secondary', `data-value="${a.id}" ${equipped || (!owned && profile.scrap < a.cost) ? 'disabled' : ''}`)}</article>`;
       },
     ).join('')}</div>`;
   if (shopTab === 'research')
@@ -619,7 +652,7 @@ function workshopScreen() {
         !p.requirement || profile.achievements.includes(p.requirement);
       return `<button class="kit-card ${profile.perk === p.id ? 'selected' : ''}" data-action="perk" data-value="${p.id}" aria-pressed="${profile.perk === p.id}"><span>${p.icon}</span><strong>${p.name}</strong><p>${p.description}</p><small>${profile.perk === p.id ? 'EQUIPPED' : unlocked ? 'EQUIP KIT ↗' : `UNLOCK: ${ACHIEVEMENTS.find((a) => a.id === p.requirement).name.toUpperCase()}`}</small></button>`;
     }).join('')}</div>`;
-  return `<div class="menu-page">${navigation()}${heading('RECOVER. RECRUIT. REARM.', 'THE BUNKER.', 'Every expedition opens more ways to survive.')}<div class="bunker-loadout"><strong>${hero.name}</strong><span>${WEAPONS[loadout.weapon].name} · ${ABILITIES.find((a) => a.id === loadout.ability).name}</span>${action('DEPLOYMENT ↗', 'home', 'text-button')}</div><nav class="store-tabs" aria-label="Bunker categories">${tabs.map(([id, label]) => action(label, 'shop-tab', shopTab === id ? 'selected' : '', `data-value="${id}" aria-pressed="${shopTab === id}"`)).join('')}</nav>${content}<p class="subtle">Hero recruitment includes its signature weapon and active ability. Unlocks are permanent. Daily challenges use a fixed loadout without bunker bonuses.</p>${!storageAvailable ? '<p class="storage-warning">Progress cannot be saved while browser storage is unavailable.</p>' : ''}</div>`;
+  return `<div class="menu-page">${navigation()}${heading('RECOVER. RECRUIT. REARM.', 'THE BUNKER.', 'Every expedition opens more ways to survive.')}<div class="bunker-loadout"><strong>${hero.name}</strong><span>${WEAPONS[loadout.weapon].name} · ${ABILITIES.find((a) => a.id === loadout.ability).name}</span>${action('DEPLOYMENT ↗', 'home', 'text-button')}</div><nav class="store-tabs" aria-label="Bunker categories">${tabs.map(([id, label]) => action(label, 'shop-tab', shopTab === id ? 'selected' : '', `data-value="${id}" aria-pressed="${shopTab === id}"`)).join('')}</nav>${content}<p class="subtle">Earn heroes and gear through field challenges, or spend scrap to unlock them sooner. Recruitment includes signature gear. Progress is banked when an operation ends, even on defeat. Unlocks are permanent. Daily challenges use a fixed loadout without bunker bonuses.</p>${!storageAvailable ? '<p class="storage-warning">Progress cannot be saved while browser storage is unavailable.</p>' : ''}</div>`;
 }
 function recordsScreen() {
   return `<div class="menu-page">${navigation()}${heading('EVERY RUN LEAVES A MARK', 'FIELD RECORDS.')}<div class="record-stats"><div><strong>${profile.runs}</strong><span>DEPLOYMENTS</span></div><div><strong>${profile.wins}</strong><span>EXTRACTIONS</span></div><div><strong>${profile.kills}</strong><span>INFECTED DOWN</span></div><div><strong>${formatTime(profile.best)}</strong><span>LONGEST RUN</span></div></div><div class="section-label">COMMENDATIONS <span>${profile.achievements.length} / ${ACHIEVEMENTS.length}</span></div><div class="achievement-grid">${ACHIEVEMENTS.map((a) => `<div class="achievement ${profile.achievements.includes(a.id) ? 'earned' : ''}"><span>${profile.achievements.includes(a.id) ? '✦' : '◇'}</span><div><strong>${a.name}</strong><p>${a.description}</p></div><small>◈ ${a.reward}</small></div>`).join('')}</div>${profile.dailyScores.length ? `<div class="section-label">DAILY CHALLENGE <span>PERSONAL BESTS · UTC</span></div><div class="history">${profile.dailyScores.map((d) => `<div><span>${d.date}</span><strong>${d.score.toLocaleString()} PTS</strong><span>${d.won ? 'EXTRACTED' : 'SIGNAL LOST'}</span></div>`).join('')}</div>` : ''}<div class="section-label">RECENT OPERATIONS</div>${profile.history.length ? `<div class="history">${profile.history.map((r) => `<div><span class="${r.won ? 'success' : ''}">${r.won ? 'EXTRACTED' : 'SIGNAL LOST'}</span><strong>${ZONES.find((z) => z.id === r.zone).name}</strong><span>${r.kills} KILLS</span><b>${formatTime(r.time)}</b></div>`).join('')}</div>` : '<p class="subtle">No field records yet. The zone is waiting.</p>'}</div>`;
@@ -724,7 +757,7 @@ function endScreen() {
     chapterId =
       CHAPTERS.find((c) => !profile.chapters.includes(c.id))?.id ||
       completed.id;
-  return `<div class="end-page"><div class="end-icon">${won ? '✦' : '☢'}</div>${heading(won ? 'EXTRACTION CONFIRMED' : 'OPERATOR SIGNAL LOST', won ? 'ANOTHER<br><em>SUNRISE.</em>' : 'THE ZONE<br><em>REMEMBERS.</em>', won ? 'You brought yourself home. That’s enough for today.' : 'Every run leaves something behind. Make it count.')}<div class="record-stats"><div><strong>${formatTime(game.time)}</strong><span>SURVIVED</span></div><div><strong>${game.kills}</strong><span>INFECTED</span></div><div><strong>${game.bossKills}</strong><span>TITANS</span></div><div><strong>${game.level}</strong><span>LEVEL</span></div></div><div class="salvage-earned"><span>SALVAGE RECOVERED</span><strong>+${result?.earned || 0} ◈</strong></div>${result?.unlocked.length ? `<div class="unlocked">${result.unlocked.map((a) => `<span>✦ ${a.name} <b>+${a.reward} ◈</b></span>`).join('')}</div>` : ''}${completed ? `<article class="chapter-debrief"><div class="eyebrow">CHAPTER COMPLETE · +${completed.reward} SALVAGE</div><h2>${completed.title}</h2><p>${completed.debrief}</p>${profile.chapters.length === CHAPTERS.length ? '<strong>CAMPAIGN COMPLETE · THANK YOU FOR PLAYING</strong>' : ''}</article>` : ''}<div class="run-summary"><span>${game.eventsCompleted} EVENTS</span><span>${game.eliteKills} ELITES</span><span>${Math.round(game.damageDealt).toLocaleString()} DAMAGE</span></div><div class="end-actions">${action(completed ? 'CONTINUE STORY ↗' : 'ONE MORE RUN ↗', 'start')}${action('RETURN TO BUNKER', 'home', 'secondary')}</div></div>`;
+  return `<div class="end-page"><div class="end-icon">${won ? '✦' : '☢'}</div>${heading(won ? 'EXTRACTION CONFIRMED' : 'OPERATOR SIGNAL LOST', won ? 'ANOTHER<br><em>SUNRISE.</em>' : 'THE ZONE<br><em>REMEMBERS.</em>', won ? 'You brought yourself home. That’s enough for today.' : 'Every run leaves something behind. Make it count.')}<div class="record-stats"><div><strong>${formatTime(game.time)}</strong><span>SURVIVED</span></div><div><strong>${game.kills}</strong><span>INFECTED</span></div><div><strong>${game.bossKills}</strong><span>TITANS</span></div><div><strong>${game.level}</strong><span>LEVEL</span></div></div><div class="salvage-earned"><span>SALVAGE RECOVERED</span><strong>+${result?.earned || 0} ◈</strong></div>${result?.unlocked.length ? `<div class="unlocked">${result.unlocked.map((a) => `<span>✦ ${a.name} <b>+${a.reward} ◈</b></span>`).join('')}</div>` : ''}${result?.fieldUnlocks?.length ? `<div class="field-rewards"><div class="eyebrow">NEW FIELD UNLOCKS · FREE</div>${result.fieldUnlocks.map((r) => `<p><strong>${r.name}</strong><span>${r.kind === 'operator' ? 'HERO + SIGNATURE GEAR' : r.kind.toUpperCase()}</span></p>`).join('')}</div>` : ''}${completed ? `<article class="chapter-debrief"><div class="eyebrow">CHAPTER COMPLETE · +${completed.reward} SALVAGE</div><h2>${completed.title}</h2><p>${completed.debrief}</p>${profile.chapters.length === CHAPTERS.length ? '<strong>CAMPAIGN COMPLETE · THANK YOU FOR PLAYING</strong>' : ''}</article>` : ''}<div class="run-summary"><span>${game.eventsCompleted} EVENTS</span><span>${game.eliteKills} ELITES</span><span>${Math.round(game.damageDealt).toLocaleString()} DAMAGE</span></div><div class="end-actions">${action(completed ? 'CONTINUE STORY ↗' : 'ONE MORE RUN ↗', 'start')}${action('VIEW BUNKER UNLOCKS', 'workshop', 'secondary')}</div></div>`;
 }
 function renderUI() {
   const playing = game.state === 'playing',
