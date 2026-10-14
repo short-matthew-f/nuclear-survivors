@@ -4,7 +4,7 @@ A fullscreen, touch-first survival roguelite in a radioactive exclusion zone. Dr
 
 **[Play the game](https://short-matthew-f.github.io/nuclear-survivors/)**
 
-## Field edition 1.2
+## Field edition 1.5
 
 - Edge-to-edge Canvas gameplay with a compact HUD. No page header, footer, sidebar, or keyboard movement.
 - A floating analog thumbstick, multi-touch dash and selectable active abilities, automatic aiming, optional sound, and supported-device haptics.
@@ -51,7 +51,7 @@ No environment variables, credentials, accounts, fixtures, or server are require
 
 ## Controls and objectives
 
-Drag anywhere on the field to move; drag slightly for slower movement. Use another finger to tap **Dash** or your equipped active ability. Change that ability and your starting weapon per hero in the bunker. The same drag controls work with a mouse. Weapons automatically aim at the nearest enemy. The pause button freezes play; switching away from the app also pauses. Escape can toggle pause on desktop, but movement is entirely pointer-based.
+Drag anywhere on the field to move; drag slightly for slower movement. Use another finger to tap **Dash** or your equipped active ability. Change that ability and your starting weapon under Heroes → select a hero → Loadout. The same drag controls work with a mouse. Weapons automatically aim at the nearest enemy. The pause button freezes play; switching away from the app also pauses. Escape can toggle pause on desktop, but movement is entirely pointer-based.
 
 The bunker offers ten field challenges as free alternatives to scrap purchases. It also sells hero recruitment, weapon blueprints, active abilities, and permanent research. Weapon unlocks enter future operations’ level-up pools and can be equipped as a starting weapon. Recruitment grants its listed signature weapon and ability, usable by your other heroes too. Earlier saves retain all seven old weapons and recruited heroes receive their signature abilities; current saved operations keep their original Shockwave and weapon pool. New profiles begin with Rustline, Orbital saw, and Rad bloom.
 
@@ -83,7 +83,7 @@ The service worker precaches the production HTML, hashed JavaScript and CSS, man
 
 New builds wait until activated by **Update** on the deployment screen or until all older app windows close. The worker retains the previous build’s assets to handle tabs crossing an update.
 
-Progress lives in local browser storage on that device and origin. Runs checkpoint every five seconds, on level-up, on pause, and when the page closes. Reopened runs offer **Resume operation** and start paused (or at the pending upgrade choice). Starting a new operation replaces the previous checkpoint. Completed runs grant salvage once. Settings offers **Export Save** and **Restore Backup** for manual transfer; restoring explicitly asks before replacing current progression. Existing v2 progression and version-one run checkpoints migrate automatically. Clearing site data removes progress; progress does not sync between devices, browsers, localhost, and the live site.
+Progress lives in local browser storage on that device and origin. Runs checkpoint every five seconds, on level-up, on pause, and when the page closes. Reopened runs offer **Resume operation** and start paused (or at the pending upgrade choice). Starting a new operation explicitly asks before replacing the previous checkpoint. Completed runs grant salvage once. Settings offers **Export Save** and **Restore Backup** for manual transfer; restoring explicitly asks before replacing current progression. Existing v2 progression and version-one run checkpoints migrate automatically. Clearing site data removes progress; progress does not sync between devices, browsers, localhost, and the live site.
 
 ## Structure
 
@@ -96,7 +96,10 @@ Progress lives in local browser storage on that device and origin. Runs checkpoi
 - `src/art.js`: absolute artwork URLs shared by CSS and Canvas under the Pages project scope.
 - `src/audio.js`: procedural score and sound synthesis, unlocked by the first user gesture.
 - `src/render.js`: Canvas world, illustrated sprite/prop atlas sampling, terrain patterns, radar, effects, and touchstick drawing.
-- `src/main.js`: menus, HUD, pointer input, audio, PWA installation, updates, and app lifecycle.
+- `src/main.js`: menu routing, HUD, pointer input, audio, PWA installation, updates, and app lifecycle.
+- `src/presentation.js`: pure menu rendering, hero pages, mission preparation, and debriefs.
+- `src/menu-model.js`: validated deployment selections, loadout summaries, goals, and research comparisons.
+- `src/menu.js`: per-view scroll, disclosure, and focus restoration.
 - `src/profile.js`: validated persistent progression, research purchases, and run settlement.
 - `src/checkpoint.js`: validated resumable run snapshots, projectile hit sets, and random-state restoration.
 - `src/style.css`: fullscreen and responsive overlays, safe areas, and accessibility preferences.
@@ -116,7 +119,7 @@ Terrain props are decorative and passable; this is an open-arena survival game. 
 
 ### Field unlocks
 
-Bunker → Unlocks shows requirements, saved progress, rewards, and the alternative scrap price. Feats are banked automatically when an operation ends, even on defeat; a feat never requires a second purchase. Hero rewards include their signature weapon and ability for all heroes. Previously purchased content stays owned. Existing achievements, best survival time, recent records, and enemy kill totals credit old saves; unrecorded weapon ranks are not guessed. Daily operations retain their fixed loadout while still contributing to field feats.
+Records → Goals shows requirements, saved progress, and rewards. Hero pages and Bunker → Armory also explain free unlock routes beside their alternative scrap prices. Feats are banked automatically when an operation ends, even on defeat; a feat never requires a second purchase. Hero rewards include their signature weapon and ability for all heroes. Previously purchased content stays owned. Existing achievements, best survival time, recent records, and enemy kill totals credit old saves; unrecorded weapon ranks are not guessed. Daily operations retain their fixed loadout while still contributing to field feats.
 
 | Free reward                          | Field feat                                  |
 | ------------------------------------ | ------------------------------------------- |
@@ -133,11 +136,11 @@ Bunker → Unlocks shows requirements, saved progress, rewards, and the alternat
 
 Design research and rationale: [docs/unlock-design.md](docs/unlock-design.md). `src/unlocks.js` owns the shared definitions, reward bundles, progress migration, and settlement rules.
 
-Menu selections, equipment changes, purchases, and settings retain the current scroll position. Opening another screen or Bunker category starts at the top. Menu DOM replacement is owned by `src/menu.js`; regression tests are in `tests/menu.test.js`.
+Menu selections, equipment changes, purchases, and settings retain the current scroll position. Each screen and category remembers its position and expanded disclosures when you return; first visits start at the top. Menu DOM replacement is owned by `src/menu.js`; regression tests are in `tests/menu.test.js`.
 
 ### Mastery, titans, relics, and expeditions (1.4)
 
-Bunker → Mastery tracks each recruited hero separately. Survive two minutes with that hero to earn its first signature branch and alternate starting weapon; complete Fieldcraft and use the hero's signature ability eight times across operations to earn its second branch. Extract once as that hero to earn a cosmetic Veteran ember cape and color treatment. Progress is awarded when the operation ends, even on defeat. Selecting a branch equips the corresponding signature ability. Borrowed abilities retain their standard behavior. Previous records did not store hero identity or ability uses, so mastery begins with operations completed after this update; earlier ownership and scrap are preserved.
+Heroes → select a hero → Mastery tracks each recruited hero separately. Survive two minutes with that hero to earn its first signature branch and alternate starting weapon; complete Fieldcraft and use the hero's signature ability eight times across operations to earn its second branch. Extract once as that hero to earn a cosmetic Veteran ember cape and color treatment. Progress is awarded when the operation ends, even on defeat. Selecting a branch equips the corresponding signature ability. Borrowed abilities retain their standard behavior. Previous records did not store hero identity or ability uses, so mastery begins with operations completed after this update; earlier ownership and scrap are preserved.
 
 | Hero    | First branch            | Second branch                      | Alternate weapon |
 | ------- | ----------------------- | ---------------------------------- | ---------------- |
@@ -155,3 +158,11 @@ Six relics last for one operation and never consume weapon slots: Wildfire seed 
 The field director rotates six events within an eight-minute operation. The original rescue, relay, and guarded convoy remain, including campaign objective priority. New moving convoys require staying near the truck through ambushes; survivor defense requires protecting a group and clearing three waves; reactor shutdown requires disabling three terminals and holding final containment. Convoys and survivor groups have destructible health, all signals expire, and rewards pay once only on completion. New events award a relic and 70–90 scrap; rescued groups also restore health and count toward rescue objectives.
 
 `src/mastery.js` owns per-hero progression, styles, and branch cooldowns. `src/bosses.js` owns titan patterns, parts, and beam geometry. `src/relics.js` owns the relic catalog, drafts, and combat hooks. `tests/field-depth.test.js` covers these systems and their migrations. For repeatable visual checks, run `npm run dev` and open `/tests/fixtures/field-scenes.html`; this fixture does not read or write saves and is not part of the production build.
+
+## Mobile presentation (1.5)
+
+Four stable destinations organize preparation: **Deploy**, **Heroes**, **Bunker**, and **Records**. Deploy summarizes the actual next operation with a persistent launch/resume action. Heroes own their Loadout, Mastery path, and Appearance. Bunker contains shared Research and Armory; unlocking shared gear never silently changes a hero's equipment. Records contains the Archive, Goals, and expandable Codex. Settings returns to its opening context and stays within a paused operation.
+
+Hero, mission, difficulty, zone, and chapter choices persist across reloads in the existing v2 profile. Locked heroes and sectors open details before an explicit scrap purchase. Research shows current and next bonuses. Debriefs show the complete scrap award, with secondary details collapsed and a direct retry/continue action.
+
+The supplied mobile UX handbook informed this revision. See [the design and verification notes](docs/mobile-ux-review.md) for scope, screenshots, and device-testing limits.

@@ -18,6 +18,7 @@ import {
   grantReward,
 } from './unlocks.js';
 import { parseMastery, settleMastery } from './mastery.js';
+import { validateDeployment } from './menu-model.js';
 import { missionReady } from './expedition.js';
 export const SAVE_KEY = 'nuclear-survivors-v2';
 export function freshProfile() {
@@ -32,6 +33,13 @@ export function freshProfile() {
     unlockProgress: {},
     mastery: {},
     heroStyles: {},
+    deployment: {
+      operator: 'nomad',
+      zone: 'forest',
+      mode: 'campaign',
+      difficulty: 'survivor',
+      chapter: CHAPTERS[0].id,
+    },
     zones: ['forest'],
     achievements: [],
     runs: 0,
@@ -177,6 +185,7 @@ export function parseProfile(raw) {
     p.settings.quality = data.settings?.quality === 'low' ? 'low' : 'high';
     restoreUnlockProgress(p, data.unlockProgress);
     parseMastery(p, data);
+    p.deployment = validateDeployment(p, data.deployment);
     return p;
   } catch {
     return freshProfile();

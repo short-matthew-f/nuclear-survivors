@@ -31,7 +31,7 @@ test('choosing equipment or buying research preserves the current menu scroll', 
   assert.equal(container.scrollTop, 1130);
 });
 
-test('opening another screen or bunker category starts at the top', () => {
+test('new screens start at the top and returning restores the previous place', () => {
   const container = menuContainer();
   const render = createMenuRenderer(container);
   render('weapons', 'workshop:weapons');
@@ -45,7 +45,7 @@ test('opening another screen or bunker category starts at the top', () => {
   render('sound enabled', 'settings:');
   assert.equal(container.scrollTop, 200);
   render('weapons again', 'workshop:weapons');
-  assert.equal(container.scrollTop, 0);
+  assert.equal(container.scrollTop, 900);
 });
 
 test('new upgrade choices reset their scroll instead of inheriting a previous level', () => {
@@ -57,4 +57,33 @@ test('new upgrade choices reset their scroll instead of inheriting a previous le
   assert.equal(container.scrollTop, 280);
   render('level 4 choices', 'run::upgrade:4');
   assert.equal(container.scrollTop, 0);
+});
+
+test('expanded item details survive selection refreshes and navigation round trips', () => {
+  const container = menuContainer();
+  let details = [];
+  container.querySelectorAll = (selector) =>
+    selector.includes('[open]')
+      ? details.filter((d) => d.open)
+      : selector.startsWith('details')
+        ? details
+        : [];
+  Object.defineProperty(container, 'innerHTML', {
+    set(html) {
+      this.markup = html;
+      this.scrollTop = 0;
+      details = [{ dataset: { panel: 'weapon-evolution' }, open: false }];
+    },
+  });
+  const render = createMenuRenderer(container);
+  render('gear', 'equipment');
+  details[0].open = true;
+  container.scrollTop = 450;
+  render('equipped gear', 'equipment');
+  assert.equal(details[0].open, true);
+  assert.equal(container.scrollTop, 450);
+  render('hero', 'hero');
+  render('gear again', 'equipment');
+  assert.equal(details[0].open, true);
+  assert.equal(container.scrollTop, 450);
 });

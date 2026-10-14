@@ -15,17 +15,12 @@ import {
   ZONES,
   WEAPONS,
   RESEARCH,
-  ACHIEVEMENTS,
   UPGRADES,
   ABILITIES,
-  WEAPON_COSTS,
   LEGACY_WEAPONS,
   CHAPTERS,
   DIFFICULTIES,
-  PERKS,
   FIELD_EVENTS,
-  ENEMIES,
-  LORE,
   EVOLUTIONS,
 } from './content.js';
 import {
@@ -40,33 +35,46 @@ import {
   equipLoadout,
 } from './profile.js';
 import { upgradePreview, evolutionProgress, WEAPON_LIMIT } from './build.js';
-import {
-  FIELD_UNLOCKS,
-  unlockReward,
-  ownsReward,
-  unlockHint,
-} from './unlocks.js';
+import { FIELD_UNLOCKS } from './unlocks.js';
 import { artUrl } from './art.js';
 import { createRenderer } from './render.js';
 import { commitOvertime, missionGoals, missionReady } from './expedition.js';
 import { abilityFor } from './abilities.js';
 import { createAudio } from './audio.js';
-import {
-  HERO_MASTERY,
-  masteryTier,
-  equipHeroStyle,
-  branchForGame,
-  abilityCooldown,
-} from './mastery.js';
+import { equipHeroStyle, branchForGame, abilityCooldown } from './mastery.js';
 import { RELICS, applyRelic } from './relics.js';
 import { eventInstruction } from './expedition.js';
 import { createMenuRenderer } from './menu.js';
+import { MENU_ROOTS, validateDeployment } from './menu-model.js';
+import {
+  renderHome,
+  renderHeroes,
+  renderHero,
+  renderEquipment,
+  renderBunker,
+  renderDeployment,
+  renderChapters,
+  renderZone,
+  renderKits,
+  renderRecords,
+  renderSettings,
+  renderResults,
+  renderReplaceRun,
+  decorateLegacy,
+} from './presentation.js';
 import { CHECKPOINT_KEY, serializeRun, restoreRun } from './checkpoint.js';
 
 const $ = (id) => document.getElementById(id),
   canvas = $('game'),
   renderer = createRenderer(canvas),
-  renderMenu = createMenuRenderer($('overlay'));
+  renderMenu = createMenuRenderer($('overlay')),
+  menuHeaderObserver = new ResizeObserver((entries) => {
+    for (const entry of entries)
+      $('overlay').style.setProperty(
+        '--ux-header-height',
+        `${entry.target.getBoundingClientRect().height}px`,
+      );
+  });
 let profile = parseProfile(null),
   storageAvailable = true;
 try {
@@ -77,14 +85,23 @@ try {
 } catch {
   storageAvailable = false;
 }
-let operator = 'nomad',
-  zone = 'forest',
-  mode = 'campaign',
-  difficulty = 'survivor',
-  chapterId =
-    CHAPTERS.find((c) => !profile.chapters.includes(c.id))?.id ||
-    CHAPTERS[0].id,
-  shopTab = 'unlocks',
+const initialDeployment = validateDeployment(profile, profile.deployment);
+let operator = initialDeployment.operator,
+  zone = initialDeployment.zone,
+  mode = initialDeployment.mode,
+  difficulty = initialDeployment.difficulty,
+  chapterId = initialDeployment.chapter,
+  inspectedHero = operator,
+  heroTab = 'loadout',
+  heroTabs = {},
+  bunkerTab = 'research',
+  armoryType = 'weapon',
+  recordTab = 'archive',
+  equipmentKind = 'weapon',
+  inventoryFilter = 'all',
+  zoneDetail = 'marsh',
+  activeRoot = 'home',
+  navHistory = [],
   screen = 'home',
   game = createGame(),
   pointer = null,
@@ -168,13 +185,15 @@ function heading(kicker, title, description = '') {
   return `<div class="eyebrow">${kicker}</div><h1>${title}</h1>${description ? `<p class="lede">${description}</p>` : ''}`;
 }
 function navigation() {
-  return `<div class="menu-nav">${action('← BACK', 'home', 'text-button')}<span class="currency">◈ ${profile.scrap} <small>SALVAGE</small></span></div>`;
+  return `<div class="menu-nav">${action('← Back', 'back', 'text-button')}<span class="currency">◈ ${profile.scrap} <small>SALVAGE</small></span></div>`;
 }
 function start() {
+  navHistory = [];
   const daily = mode === 'daily',
     chapter =
       mode === 'campaign' ? CHAPTERS.find((c) => c.id === chapterId) : null,
     seed = new Date().toISOString().slice(0, 10);
+  rememberDeployment();
   clearCheckpoint();
   game = createGame(
     seededRandom(daily ? seed : `${Date.now()}-${Math.random()}`),
@@ -206,7 +225,39 @@ function start() {
   tone(330, 0.25);
   renderUI();
 }
+function rememberDeployment() {
+  profile.deployment = validateDeployment(profile, {
+    operator,
+    zone,
+    mode,
+    difficulty,
+    chapter: chapterId,
+  });
+  save();
+}
+function openScreen(next) {
+  if (next !== screen) navHistory.push(screen);
+  menu(next);
+}
+function backScreen() {
+  if (screen === 'settings' && game.state === 'paused') {
+    navHistory.pop();
+    screen = 'run';
+    overlayStamp = '';
+    renderUI();
+    return;
+  }
+  menu(navHistory.pop() || activeRoot);
+}
 function menu(next = 'home') {
+  if (MENU_ROOTS.includes(next)) activeRoot = next;
+  else if (['hero', 'equipment'].includes(next)) activeRoot = 'heroes';
+  else if (
+    ['deployment', 'campaign', 'zone-detail', 'kits', 'replace-run'].includes(
+      next,
+    )
+  )
+    activeRoot = 'home';
   screen = next;
   overlayStamp = '';
   pointer = null;
@@ -335,7 +386,7 @@ async function install() {
     await installPrompt.prompt();
     installPrompt = null;
   } else {
-    menu('guide');
+    openScreen('guide');
     toast(
       'iPhone: Share → Add to Home Screen. Android: browser menu → Install app.',
     );
@@ -356,57 +407,136 @@ $('overlay').addEventListener('click', async (e) => {
   const act = button.dataset.action;
   const value = button.dataset.value;
   tone(420, 0.035, 0.012);
-  if (act === 'start') {
-    if (mode === 'campaign') menu('campaign');
+  if (act === 'nav' && MENU_ROOTS.includes(value)) {
+    navHistory = [];
+    if (['dead', 'won'].includes(game.state))
+      game = createGame(Math.random, { operator, zone });
+    menu(value);
+  } else if (act === 'back' || act === 'settings-back') backScreen();
+  else if (act === 'start' || act === 'deploy') {
+    if (savedRun) openScreen('replace-run');
     else start();
-  } else if (act === 'deploy') start();
+  } else if (act === 'confirm-start') start();
   else if (act === 'restore' && savedRun) {
     game = savedRun;
     savedRun = null;
+    navHistory = [];
     screen = 'run';
     overlayStamp = '';
     renderUI();
+  } else if (act === 'result-retry') {
+    operator = game.operator.id;
+    zone = game.zone.id;
+    mode = game.daily
+      ? 'daily'
+      : game.chapter
+        ? 'campaign'
+        : game.mode === 'endless'
+          ? 'endless'
+          : 'extraction';
+    if (game.chapter && !result?.chapterCompleted) chapterId = game.chapter;
+    difficulty = game.difficulty.id;
+    rememberDeployment();
+    start();
+  } else if (act === 'hero-open' || act === 'hero-goal') {
+    if (!OPERATORS.some((o) => o.id === value)) return;
+    inspectedHero = value;
+    heroTab = act === 'hero-goal' ? 'mastery' : heroTabs[value] || 'loadout';
+    openScreen('hero');
+  } else if (
+    act === 'hero-tab' &&
+    ['loadout', 'mastery', 'appearance'].includes(value)
+  ) {
+    heroTab = value;
+    heroTabs[inspectedHero] = value;
+    menu('hero');
+  } else if (act === 'hero-use' && profile.operators.includes(value)) {
+    operator = value;
+    rememberDeployment();
+    navHistory = [];
+    menu('home');
+    toast(
+      `${OPERATORS.find((o) => o.id === value).name} is ready for deployment.`,
+    );
+  } else if (act === 'gear-open' && ['weapon', 'ability'].includes(value)) {
+    equipmentKind = value;
+    inventoryFilter = 'all';
+    openScreen('equipment');
+  } else if (act === 'inventory-filter' && ['all', 'owned'].includes(value)) {
+    inventoryFilter = value;
+    menu('equipment');
+  } else if (act === 'bunker-tab' && ['research', 'armory'].includes(value)) {
+    bunkerTab = value;
+    menu('workshop');
+  } else if (act === 'armory-tab' && ['weapon', 'ability'].includes(value)) {
+    armoryType = value;
+    inventoryFilter = 'all';
+    menu('workshop');
+  } else if (
+    act === 'record-tab' &&
+    ['archive', 'goals', 'codex'].includes(value)
+  ) {
+    recordTab = value;
+    menu('records');
+  } else if (act === 'goals') {
+    recordTab = 'goals';
+    openScreen('records');
+  } else if (act === 'goal-open') {
+    const goal = FIELD_UNLOCKS.find((g) => g.id === value);
+    if (!goal) return;
+    if (goal.kind === 'operator') {
+      inspectedHero = goal.target;
+      heroTab = 'loadout';
+      openScreen('hero');
+    } else {
+      bunkerTab = 'armory';
+      armoryType = goal.kind;
+      inventoryFilter = 'all';
+      openScreen('workshop');
+    }
   } else if (
     [
       'home',
+      'heroes',
       'workshop',
       'records',
       'guide',
       'settings',
       'campaign',
-      'codex',
+      'deployment',
+      'kits',
     ].includes(act)
   ) {
     if (act === 'home' && ['dead', 'won'].includes(game.state))
       game = createGame(Math.random, { operator, zone });
-    menu(act);
-  } else if (act === 'operator') {
-    if (!profile.operators.includes(value)) {
-      if (!purchase(profile, 'operator', value)) {
-        toast(unlockHint(profile, 'operator', value));
-        return;
-      }
-      save();
+    openScreen(act);
+  } else if (act === 'zone-detail' && ZONES.some((z) => z.id === value)) {
+    zoneDetail = value;
+    openScreen('zone-detail');
+  } else if (act === 'buy-zone') {
+    if (purchase(profile, 'zone', value)) {
+      zone = value;
+      rememberDeployment();
+      navHistory.pop();
+      menu('deployment');
+      toast('Sector unlocked. Ready to deploy.');
     }
-    operator = value;
-    menu();
-  } else if (act === 'zone') {
-    if (!profile.zones.includes(value)) {
-      if (!purchase(profile, 'zone', value)) {
-        toast('Recover more salvage to access this sector.');
-        return;
-      }
-      save();
-    }
+  } else if (act === 'zone' && profile.zones.includes(value)) {
     zone = value;
-    menu();
-  } else if (act === 'mode') {
+    rememberDeployment();
+    menu('deployment');
+  } else if (
+    act === 'mode' &&
+    ['campaign', 'extraction', 'endless', 'daily'].includes(value)
+  ) {
     mode = value;
-    menu();
-  } else if (act === 'difficulty') {
+    rememberDeployment();
+    menu('deployment');
+  } else if (act === 'difficulty' && DIFFICULTIES.some((d) => d.id === value)) {
     if (value === 'veteran' && !profile.wins) return;
     difficulty = value;
-    menu();
+    rememberDeployment();
+    menu('deployment');
   } else if (act === 'chapter') {
     const index = CHAPTERS.findIndex((c) => c.id === value);
     if (
@@ -416,11 +546,17 @@ $('overlay').addEventListener('click', async (e) => {
       return;
     chapterId = value;
     mode = 'campaign';
+    rememberDeployment();
     menu('campaign');
+  } else if (act === 'deployment-done' || act === 'chapter-done') {
+    rememberDeployment();
+    navHistory = [];
+    menu('home');
   } else if (act === 'perk') {
     if (selectPerk(profile, value)) {
       save();
-      menu('workshop');
+      menu('kits');
+      toast('Field kit equipped.');
     } else toast('Complete the listed commendation to unlock this kit.');
   } else if (act === 'export') {
     const blob = new Blob([exportProfile(profile)], {
@@ -440,47 +576,34 @@ $('overlay').addEventListener('click', async (e) => {
     pendingImport = null;
     save();
     clearCheckpoint();
-    operator = 'nomad';
-    zone = 'forest';
+    const selection = validateDeployment(profile, profile.deployment);
+    operator = selection.operator;
+    zone = selection.zone;
+    mode = selection.mode;
+    difficulty = selection.difficulty;
+    chapterId = selection.chapter;
+    inspectedHero = operator;
     game = createGame();
-    chapterId =
-      CHAPTERS.find((c) => !profile.chapters.includes(c.id))?.id ||
-      CHAPTERS[0].id;
     resize();
     menu('settings');
     toast('Bunker backup restored.');
   } else if (act === 'cancel-import') {
     pendingImport = null;
     menu('settings');
-  } else if (act === 'shop-tab') {
-    if (
-      [
-        'unlocks',
-        'heroes',
-        'mastery',
-        'weapons',
-        'abilities',
-        'research',
-        'kits',
-      ].includes(value)
-    ) {
-      shopTab = value;
-      menu('workshop');
-    }
-  } else if (act === 'mastery-hero' && profile.operators.includes(value)) {
-    operator = value;
-    menu('workshop');
   } else if (act === 'branch' || act === 'outfit') {
-    if (equipHeroStyle(profile, operator, act, value)) {
+    if (equipHeroStyle(profile, inspectedHero, act, value)) {
       if (act === 'branch')
         equipLoadout(
           profile,
-          operator,
+          inspectedHero,
           'ability',
-          OPERATORS.find((o) => o.id === operator).ability,
+          OPERATORS.find((o) => o.id === inspectedHero).ability,
         );
       save();
-      menu('workshop');
+      menu('hero');
+      toast(
+        act === 'branch' ? 'Signature branch equipped.' : 'Outfit equipped.',
+      );
     }
   } else if (act === 'relic') {
     if (applyRelic(game, value)) {
@@ -490,35 +613,46 @@ $('overlay').addEventListener('click', async (e) => {
       tone(820, 0.2);
     }
   } else if (act === 'recruit') {
-    if (
-      !profile.operators.includes(value) &&
-      !purchase(profile, 'operator', value)
-    ) {
-      toast(unlockHint(profile, 'operator', value));
-      return;
+    if (purchase(profile, 'operator', value)) {
+      save();
+      inspectedHero = value;
+      menu('hero');
+      toast(
+        `${OPERATORS.find((o) => o.id === value).name} recruited. Signature gear unlocked.`,
+      );
     }
-    operator = value;
-    save();
-    menu('workshop');
+  } else if (['unlock-weapon', 'unlock-ability'].includes(act)) {
+    const kind = act.endsWith('weapon') ? 'weapon' : 'ability';
+    if (purchase(profile, kind, value)) {
+      save();
+      menu('workshop');
+      toast('Shared gear unlocked. Equip it on a hero’s loadout page.');
+    }
   } else if (
     ['buy-weapon', 'buy-ability', 'equip-weapon', 'equip-ability'].includes(act)
   ) {
     const kind = act.endsWith('weapon') ? 'weapon' : 'ability';
     if (act.startsWith('buy') && !purchase(profile, kind, value)) {
-      toast('Not enough salvage, or this item is already unlocked.');
+      toast('Not enough scrap, or this gear is already owned.');
       return;
     }
-    if (equipLoadout(profile, operator, kind, value)) {
+    if (equipLoadout(profile, inspectedHero, kind, value)) {
       save();
       tone(650, 0.15);
-      menu('workshop');
+      menu('equipment');
+      toast(
+        `${kind === 'weapon' ? WEAPONS[value].name : ABILITIES.find((a) => a.id === value).name} equipped for ${OPERATORS.find((o) => o.id === inspectedHero).name}.`,
+      );
     }
   } else if (act === 'research') {
     if (purchase(profile, 'research', value)) {
       save();
       tone(650, 0.15);
       menu('workshop');
-    } else toast('Not enough salvage.');
+      toast(
+        `${RESEARCH.find((r) => r.id === value).name} · rank ${profile.research[value]}.`,
+      );
+    } else toast('Not enough scrap.');
   } else if (act === 'upgrade') {
     if (applyUpgrade(game, value)) {
       haptic(12);
@@ -559,131 +693,9 @@ $('overlay').addEventListener('click', async (e) => {
     save();
     resize();
     menu('settings');
-  } else if (act === 'settings-back') {
-    screen = game.state === 'paused' ? 'run' : 'home';
-    overlayStamp = '';
-    renderUI();
   } else if (act === 'install') await install();
   else if (act === 'fullscreen') await fullscreen();
 });
-function homeScreen() {
-  const o = OPERATORS.find((o) => o.id === operator),
-    z = ZONES.find((z) => z.id === zone);
-  return `<div class="home"><div class="home-main"><div class="brand-mark">☢ <small>FIELD BUILD 1.4</small></div>${heading('A SURVIVAL ROGUELITE', 'NUCLEAR<br><em>SURVIVORS.</em>', 'The world ended. Your shift didn’t.')}<div class="home-actions">${savedRun ? action(`RESUME ${formatTime(savedRun.time)} OPERATION <span>↗</span>`, 'restore') + action('NEW OPERATION', 'start', 'secondary') : action('ENTER THE ZONE <span>↗</span>', 'start')}${action('THE BUNKER <span>◈</span>', 'workshop', 'secondary')}</div><div class="home-links">${action('FIELD GUIDE', 'guide', 'text-button')}${action('CODEX', 'codex', 'text-button')}${action('RUN ARCHIVE', 'records', 'text-button')}${action('SETTINGS', 'settings', 'text-button')}</div><div class="install-row">${action('⊕ INSTALL GAME', 'install', 'text-button')}<span>TOUCH TO MOVE · AUTO COMBAT</span></div></div><div class="deployment-panel"><div class="panel-heading"><span>PREPARE TO DEPLOY</span><span class="currency">◈ ${profile.scrap}</span></div><label>01 / OPERATOR</label><div class="operator-options">${OPERATORS.map((item) => `<button class="operator-option ${operator === item.id ? 'selected' : ''}" data-action="operator" data-value="${item.id}" aria-pressed="${operator === item.id}"><span class="operator-art art-${item.id}" aria-hidden="true"></span><strong>${item.name}</strong><small>${profile.operators.includes(item.id) ? item.role : `◈ ${item.cost} TO RECRUIT`}</small></button>`).join('')}</div><p class="selection-description">${o.description}</p><div class="selected-kit"><strong>${WEAPONS[loadoutFor(profile, operator).weapon].name}</strong><span>+ ${ABILITIES.find((a) => a.id === loadoutFor(profile, operator).ability).name}</span>${action('CHANGE LOADOUT ↗', 'workshop', 'text-button')}</div><label>02 / DROP ZONE</label><div class="zone-options">${ZONES.map((item) => `<button class="zone-option ${zone === item.id ? 'selected' : ''}" data-action="zone" data-value="${item.id}" aria-pressed="${zone === item.id}"><span class="zone-swatch ${item.id}"></span><span><strong>${item.name}</strong><small>${profile.zones.includes(item.id) ? item.label : `LOCKED · ◈ ${item.cost}`}</small></span><b>${zone === item.id ? '↗' : '+'}</b></button>`).join('')}</div><label>03 / OPERATION</label><div class="mode-options">${[
-    ['campaign', 'STORY'],
-    ['extraction', 'EXTRACT'],
-    ['endless', 'ENDLESS'],
-    ['daily', 'DAILY'],
-  ]
-    .map(([id, name]) =>
-      action(
-        name,
-        'mode',
-        mode === id ? 'selected' : '',
-        `data-value="${id}" aria-pressed="${mode === id}"`,
-      ),
-    )
-    .join(
-      '',
-    )}</div><p class="selection-description">${mode === 'campaign' ? `Five chapters. A world worth saving. ${profile.chapters.length} / ${CHAPTERS.length} complete.` : mode === 'daily' ? 'A shared daily seed. Nomad. Red Forest. No bunker bonuses. Local scores only.' : mode === 'endless' ? 'No rescue is coming. Survive as long as you can.' : 'Eight minutes. Three titans. Hold the extraction beacon to get home.'}</p>${mode !== 'daily' && mode !== 'campaign' ? `<label>04 / THREAT LEVEL</label><div class="difficulty-options">${DIFFICULTIES.map((d) => action(d.name, 'difficulty', difficulty === d.id ? 'selected' : '', `data-value="${d.id}" ${d.id === 'veteran' && !profile.wins ? 'disabled' : ''}`)).join('')}</div><p class="selection-description">${DIFFICULTIES.find((d) => d.id === difficulty).description}</p>` : ''}<div class="sector-note"><i></i>${z.subtitle}<span>BUILD 1.4</span></div></div></div>`;
-}
-function campaignScreen() {
-  const chapter = CHAPTERS.find((c) => c.id === chapterId) || CHAPTERS[0];
-  return `<div class="menu-page campaign-page">${navigation()}${heading('THE BUNKER SIX CHRONICLES', 'ONE MORE<br><em>SUNRISE.</em>', 'Five expeditions. One reason to come home.')}<div class="chapter-list">${CHAPTERS.map(
-    (c, i) => {
-      const done = profile.chapters.includes(c.id);
-      const available = CHAPTERS.slice(0, i).every((c) =>
-        profile.chapters.includes(c.id),
-      );
-      return `<button data-action="chapter" data-value="${c.id}" class="${chapter.id === c.id ? 'selected' : ''}" ${available ? '' : 'disabled'}><span>${done ? '✦' : String(i + 1).padStart(2, '0')}</span><div><strong>${c.title}</strong><small>${ZONES.find((z) => z.id === c.zone).name} · ${DIFFICULTIES.find((d) => d.id === c.difficulty).name}</small></div><b>${done ? 'REPLAY' : available ? 'READY' : 'LOCKED'}</b></button>`;
-    },
-  ).join(
-    '',
-  )}</div><article class="briefing"><div class="eyebrow">MISSION BRIEFING / ${chapter.id.toUpperCase()}</div><h2>${chapter.title}</h2><p>${chapter.briefing}</p><ul class="mission-list">${chapter.goals.map((goal) => `<li>${goal.label}</li>`).join('')}<li>Survive eight minutes and extract alive</li></ul><div class="run-summary"><span>${ZONES.find((z) => z.id === chapter.zone).name.toUpperCase()}</span><span>${DIFFICULTIES.find((d) => d.id === chapter.difficulty).name.toUpperCase()}</span><span>${profile.chapters.includes(chapter.id) ? 'CHAPTER REWARD CLAIMED' : `FIRST CLEAR: ◈ ${chapter.reward}`}</span></div>${action('DEPLOY TO SECTOR ↗', 'deploy')}</article></div>`;
-}
-function codexScreen() {
-  return `<div class="menu-page">${navigation()}${heading('KNOW WHAT HUNTS YOU', 'ZONE CODEX.', 'Recovered field intelligence. Updated after every operation.')}<div class="codex-grid">${Object.entries(
-    ENEMIES,
-  )
-    .map(
-      ([id, e]) =>
-        `<article class="codex-card"><div class="codex-art enemy-art-${id}" aria-hidden="true"></div><div><div class="eyebrow">${profile.enemyKills[id] || 0} CONFIRMED KILLS</div><h2>${e.name}</h2><p>${LORE[id]}</p><small>BASE HP ${e.hp} · CONTACT ${e.damage}</small></div></article>`,
-    )
-    .join(
-      '',
-    )}</div><div class="section-label">RARE FIELD RELICS</div><div class="guide-grid">${RELICS.map((r) => `<article><span>${r.icon}</span><h2>${r.name}</h2><p>${r.description}</p></article>`).join('')}</div><div class="section-label">SIGNALS WORTH FOLLOWING</div><div class="guide-grid">${Object.values(
-    FIELD_EVENTS,
-  )
-    .map(
-      (e) =>
-        `<article><span>${e.icon}</span><h2>${e.name}</h2><p>${e.instruction}. ${e.duration} seconds of objective progress. Earn ${e.reward} salvage plus supplies. Escort, shutdown and defense signals last 100 seconds; other signals last 80 seconds.</p></article>`,
-    )
-    .join(
-      '',
-    )}</div><p class="subtle">Elite infected have an amber ring, tougher armor, and carry extra salvage. Dash through gaps and use Shockwave to clear hostile projectiles.</p></div>`;
-}
-function unlocksScreen() {
-  const remaining = FIELD_UNLOCKS.filter((c) => !ownsReward(profile, c));
-  return `<p class="subtle">${remaining.length} field rewards remaining. Complete a feat to earn its reward free, or spend scrap in the other tabs to unlock it sooner. Your progress is banked when an operation ends, even on defeat.</p><div class="unlock-grid">${[
-    ...FIELD_UNLOCKS,
-  ]
-    .sort(
-      (a, b) => Number(ownsReward(profile, a)) - Number(ownsReward(profile, b)),
-    )
-    .map((c) => {
-      const reward = unlockReward(c),
-        owned = ownsReward(profile, c),
-        progress = profile.unlockProgress[c.id] || 0;
-      const hero =
-        c.kind === 'operator' ? OPERATORS.find((o) => o.id === c.target) : null;
-      return `<article class="unlock-card ${owned ? 'earned' : ''}"><div class="eyebrow">${owned ? 'UNLOCKED' : c.kind === 'operator' ? 'HERO + SIGNATURE GEAR' : c.kind.toUpperCase()}</div><h2>${reward.name}</h2><strong>${c.title}</strong><p>${c.description}</p>${hero ? `<div class="store-includes">INCLUDES ${WEAPONS[hero.weapon].name} + ${ABILITIES.find((a) => a.id === hero.ability).name}</div>` : ''}<progress value="${progress}" max="${c.goal}" aria-label="${reward.name} unlock progress"></progress><div class="unlock-progress"><span>${progress} / ${c.goal}${c.unit ? ' SECONDS' : ''}</span><span>${progress >= c.goal ? 'FEAT COMPLETE' : owned ? 'ALREADY OWNED' : 'EARN FREE'}</span></div>${action(owned ? 'VIEW EQUIPMENT ↗' : `VIEW SCRAP OPTION · ◈ ${reward.cost}`, 'shop-tab', 'secondary', `data-value="${{ operator: 'heroes', weapon: 'weapons', ability: 'abilities' }[c.kind]}"`)}</article>`;
-    })
-    .join('')}</div>`;
-}
-function masteryScreen() {
-  const hero = OPERATORS.find((o) => o.id === operator),
-    spec = HERO_MASTERY[operator],
-    record = profile.mastery[operator] || { best: 0, casts: 0, wins: 0 },
-    tier = masteryTier(record),
-    style = profile.heroStyles[operator] || {
-      branch: 'standard',
-      outfit: 'field',
-    };
-  const milestones = [
-    [
-      'FIELDCRAFT',
-      Math.min(120, record.best),
-      120,
-      `Survive 2 minutes as ${hero.name}. Earn ${spec.branches[0].name} and ${WEAPONS[spec.weapon].name}.`,
-    ],
-    [
-      'SIGNATURE DISCIPLINE',
-      Math.min(8, record.casts),
-      8,
-      `Use ${ABILITIES.find((a) => a.id === hero.ability).name} 8 times across operations, plus Fieldcraft. Earn ${spec.branches[1].name}.`,
-    ],
-    [
-      'VETERAN',
-      Math.min(1, record.wins),
-      1,
-      `Extract alive as ${hero.name}. Earn the Veteran outfit.`,
-    ],
-  ];
-  return `<div class="mastery-heroes">${OPERATORS.filter((o) =>
-    profile.operators.includes(o.id),
-  )
-    .map((o) =>
-      action(
-        o.name,
-        'mastery-hero',
-        o.id === operator ? 'selected' : 'secondary',
-        `data-value="${o.id}" aria-pressed="${o.id === operator}"`,
-      ),
-    )
-    .join(
-      '',
-    )}</div><div class="mastery-intro"><div class="store-portrait operator-art art-${operator} ${style.outfit === 'veteran' ? 'veteran-outfit' : ''}" aria-hidden="true"></div><div><div class="eyebrow">${hero.role} · MASTERY ${tier}/2</div><h2>${hero.name}</h2><p>Progress is banked after every operation, even on defeat. Branches modify this hero’s signature ability. Selecting a branch equips that ability.</p></div></div><div class="mastery-goals">${milestones.map(([name, value, max, text]) => `<article><strong>${name}</strong><p>${text}</p><progress value="${value}" max="${max}" aria-label="${name} mastery progress"></progress><small>${value}/${max}${name === 'FIELDCRAFT' ? ' SECONDS' : ''}</small></article>`).join('')}</div><div class="section-label">SIGNATURE ABILITY BRANCH</div><div class="store-grid">${[{ id: 'standard', name: 'Standard', tier: 0, description: ABILITIES.find((a) => a.id === hero.ability).description }, ...spec.branches].map((b) => `<article class="store-card ${style.branch === b.id ? 'selected' : ''}"><div class="eyebrow">${b.tier === 0 ? 'DEFAULT' : b.tier === 1 ? 'FIELDCRAFT REWARD' : 'SIGNATURE DISCIPLINE REWARD'}</div><h2>${b.name}</h2><p>${b.description}</p>${action(style.branch === b.id ? 'EQUIPPED' : tier >= b.tier ? 'EQUIP BRANCH ↗' : 'MASTERY REQUIRED', 'branch', 'secondary', `data-value="${b.id}" ${style.branch === b.id || tier < b.tier ? 'disabled' : ''}`)}</article>`).join('')}</div><div class="section-label">OUTFIT · COSMETIC ONLY</div><div class="mastery-heroes">${action('FIELD', 'outfit', style.outfit === 'field' ? 'selected' : 'secondary', `data-value="field"`)}${action(record.wins ? 'VETERAN · EMBER CAPE' : 'VETERAN · EXTRACT TO EARN', 'outfit', style.outfit === 'veteran' ? 'selected' : 'secondary', `data-value="veteran" ${record.wins ? '' : 'disabled'}`)}</div><p class="subtle">Daily challenges use standard abilities and field outfits. Recruit more heroes to unlock their mastery paths.</p>`;
-}
 function relicScreen() {
   return `<div class="upgrade-page">${heading('RARE FIELD RELIC', 'CHANGE THE RULES.', 'Choose one permanent effect for this operation. Relics do not occupy weapon slots.')}<div class="choices">${game.relicChoices
     .map((id) => {
@@ -694,63 +706,41 @@ function relicScreen() {
       '',
     )}</div><p class="subtle">${game.relics.length} / ${RELICS.length} relics installed · operation paused</p></div>`;
 }
+function menuContext() {
+  return {
+    profile,
+    selection: { operator, zone, mode, difficulty, chapter: chapterId },
+    savedRun,
+    inspectedHero,
+    heroTab,
+    bunkerTab,
+    armoryType,
+    recordTab,
+    equipmentKind,
+    inventoryFilter,
+    zoneDetail,
+    activeRoot,
+    storageAvailable,
+    paused: game.state === 'paused',
+  };
+}
+function homeScreen() {
+  return renderHome(menuContext());
+}
 function workshopScreen() {
-  const loadout = loadoutFor(profile, operator),
-    hero = OPERATORS.find((o) => o.id === operator);
-  const tabs = [
-    ['unlocks', 'UNLOCKS'],
-    ['heroes', 'HEROES'],
-    ['mastery', 'MASTERY'],
-    ['weapons', 'WEAPONS'],
-    ['abilities', 'ABILITIES'],
-    ['research', 'RESEARCH'],
-    ['kits', 'KITS'],
-  ];
-  let content = '';
-  if (shopTab === 'unlocks') content = unlocksScreen();
-  if (shopTab === 'mastery') content = masteryScreen();
-  if (shopTab === 'heroes')
-    content = `<div class="store-grid">${OPERATORS.map((o) => {
-      const owned = profile.operators.includes(o.id);
-      return `<article class="store-card ${o.id === operator ? 'selected' : ''}"><div class="store-portrait operator-art art-${o.id}" aria-hidden="true"></div><div class="eyebrow">${o.role}</div><h2>${o.name}</h2><p>${o.description}</p><p class="unlock-hint">${owned ? 'RECRUITED · SIGNATURE GEAR AVAILABLE' : `EARN FREE: ${unlockHint(profile, 'operator', o.id)}`}</p><div class="store-includes">INCLUDES ${WEAPONS[o.weapon].name} + ${ABILITIES.find((a) => a.id === o.ability).name}</div>${action(o.id === operator ? 'SELECTED' : owned ? 'SELECT HERO ↗' : `RECRUIT ◈ ${o.cost}`, 'recruit', 'secondary', `data-value="${o.id}" ${o.id === operator || (!owned && profile.scrap < o.cost) ? 'disabled' : ''}`)}</article>`;
-    }).join('')}</div>`;
-  if (shopTab === 'weapons')
-    content = `<p class="subtle">Unlock weapons for level-up offers. Equip one as ${hero.name}’s starting weapon. Four weapon slots per operation.</p><div class="store-grid">${Object.entries(
-      WEAPONS,
-    )
-      .map(([id, w]) => {
-        const owned = profile.weapons.includes(id),
-          equipped = loadout.weapon === id;
-        return `<article class="store-card ${equipped ? 'selected' : ''}"><span class="store-symbol" style="color:${w.color}">${w.icon}</span><div class="eyebrow">${owned ? 'UNLOCKED' : 'BUNKER BLUEPRINT'}</div><h2>${w.name}</h2><p>${w.description}</p><div class="store-includes">EVOLVES INTO ${EVOLUTIONS[id].name}</div>${!owned ? `<p class="unlock-hint">${unlockHint(profile, 'weapon', id)}</p>` : ''}${action(equipped ? 'STARTING WEAPON' : owned ? 'EQUIP STARTING WEAPON ↗' : `UNLOCK & EQUIP ◈ ${WEAPON_COSTS[id]}`, owned ? 'equip-weapon' : 'buy-weapon', 'secondary', `data-value="${id}" ${equipped || (!owned && profile.scrap < WEAPON_COSTS[id]) ? 'disabled' : ''}`)}</article>`;
-      })
-      .join('')}</div>`;
-  if (shopTab === 'abilities')
-    content = `<p class="subtle">Equip one active ability alongside Dash. Ability unlocks work for every recruited hero.</p><div class="store-grid">${ABILITIES.map(
-      (a) => {
-        const owned = profile.abilities.includes(a.id),
-          equipped = loadout.ability === a.id;
-        return `<article class="store-card ${equipped ? 'selected' : ''}"><span class="store-symbol">${a.icon}</span><div class="eyebrow">${a.cooldown}s BASE COOLDOWN</div><h2>${a.name}</h2><p>${a.description}</p>${!owned ? `<p class="unlock-hint">${unlockHint(profile, 'ability', a.id)}</p>` : ''}${action(equipped ? 'ACTIVE ABILITY' : owned ? 'EQUIP ABILITY ↗' : `UNLOCK & EQUIP ◈ ${a.cost}`, owned ? 'equip-ability' : 'buy-ability', 'secondary', `data-value="${a.id}" ${equipped || (!owned && profile.scrap < a.cost) ? 'disabled' : ''}`)}</article>`;
-      },
-    ).join('')}</div>`;
-  if (shopTab === 'research')
-    content = `<div class="research-grid">${RESEARCH.map((r) => {
-      const rank = profile.research[r.id] || 0,
-        cost = r.cost * (rank + 1);
-      return `<article class="research-card"><span class="research-icon">${r.icon}</span><div class="eyebrow">RESEARCH / ${rank} OF ${r.cap}</div><h2>${r.name}</h2><p>${r.description}</p><div class="rank-track">${Array.from({ length: r.cap }, (_, i) => `<i class="${i < rank ? 'filled' : ''}"></i>`).join('')}</div>${action(rank === r.cap ? 'FULLY RESEARCHED' : `RESEARCH <span>◈ ${cost}</span>`, 'research', 'secondary', `data-value="${r.id}" ${rank === r.cap || profile.scrap < cost ? 'disabled' : ''}`)}</article>`;
-    }).join('')}</div>`;
-  if (shopTab === 'kits')
-    content = `<div class="kit-grid">${PERKS.map((p) => {
-      const unlocked =
-        !p.requirement || profile.achievements.includes(p.requirement);
-      return `<button class="kit-card ${profile.perk === p.id ? 'selected' : ''}" data-action="perk" data-value="${p.id}" aria-pressed="${profile.perk === p.id}"><span>${p.icon}</span><strong>${p.name}</strong><p>${p.description}</p><small>${profile.perk === p.id ? 'EQUIPPED' : unlocked ? 'EQUIP KIT ↗' : `UNLOCK: ${ACHIEVEMENTS.find((a) => a.id === p.requirement).name.toUpperCase()}`}</small></button>`;
-    }).join('')}</div>`;
-  return `<div class="menu-page">${navigation()}${heading('RECOVER. RECRUIT. REARM.', 'THE BUNKER.', 'Every expedition opens more ways to survive.')}<div class="bunker-loadout"><strong>${hero.name}</strong><span>${WEAPONS[loadout.weapon].name} · ${ABILITIES.find((a) => a.id === loadout.ability).name}</span>${action('DEPLOYMENT ↗', 'home', 'text-button')}</div><nav class="store-tabs" aria-label="Bunker categories">${tabs.map(([id, label]) => action(label, 'shop-tab', shopTab === id ? 'selected' : '', `data-value="${id}" aria-pressed="${shopTab === id}"`)).join('')}</nav>${content}<p class="subtle">Earn heroes and gear through field challenges, or spend scrap to unlock them sooner. Recruitment includes signature gear. Progress is banked when an operation ends, even on defeat. Unlocks are permanent. Daily challenges use a fixed loadout without bunker bonuses.</p>${!storageAvailable ? '<p class="storage-warning">Progress cannot be saved while browser storage is unavailable.</p>' : ''}</div>`;
+  return renderBunker(menuContext());
 }
 function recordsScreen() {
-  return `<div class="menu-page">${navigation()}${heading('EVERY RUN LEAVES A MARK', 'FIELD RECORDS.')}<div class="record-stats"><div><strong>${profile.runs}</strong><span>DEPLOYMENTS</span></div><div><strong>${profile.wins}</strong><span>EXTRACTIONS</span></div><div><strong>${profile.kills}</strong><span>INFECTED DOWN</span></div><div><strong>${formatTime(profile.best)}</strong><span>LONGEST RUN</span></div></div><div class="section-label">COMMENDATIONS <span>${profile.achievements.length} / ${ACHIEVEMENTS.length}</span></div><div class="achievement-grid">${ACHIEVEMENTS.map((a) => `<div class="achievement ${profile.achievements.includes(a.id) ? 'earned' : ''}"><span>${profile.achievements.includes(a.id) ? '✦' : '◇'}</span><div><strong>${a.name}</strong><p>${a.description}</p></div><small>◈ ${a.reward}</small></div>`).join('')}</div>${profile.dailyScores.length ? `<div class="section-label">DAILY CHALLENGE <span>PERSONAL BESTS · UTC</span></div><div class="history">${profile.dailyScores.map((d) => `<div><span>${d.date}</span><strong>${d.score.toLocaleString()} PTS</strong><span>${d.won ? 'EXTRACTED' : 'SIGNAL LOST'}</span></div>`).join('')}</div>` : ''}<div class="section-label">RECENT OPERATIONS</div>${profile.history.length ? `<div class="history">${profile.history.map((r) => `<div><span class="${r.won ? 'success' : ''}">${r.won ? 'EXTRACTED' : 'SIGNAL LOST'}</span><strong>${ZONES.find((z) => z.id === r.zone).name}</strong><span>${r.kills} KILLS</span><b>${formatTime(r.time)}</b></div>`).join('')}</div>` : '<p class="subtle">No field records yet. The zone is waiting.</p>'}</div>`;
+  return renderRecords(menuContext());
+}
+function campaignScreen() {
+  return renderChapters(menuContext());
+}
+function settingsScreen() {
+  return renderSettings(menuContext());
 }
 function guideScreen() {
-  return `<div class="menu-page">${navigation()}${heading('READ THIS. STAY ALIVE.', 'FIELD MANUAL.')}<div class="guide-grid"><article><span>01</span><h2>Keep your thumb moving.</h2><p>Touch and drag anywhere on the field. A floating stick follows your thumb. Drag a little to walk, further to run. Weapons aim and fire automatically. A mouse drag works too.</p></article><article><span>02</span><h2>Use both hands.</h2><p>Keep moving with one thumb. Tap Dash with the other to slip through danger. The second button uses your equipped ability: blast, heal, overclock, freeze, or deploy a sentry. Both abilities recharge automatically. Change your active ability in the bunker.</p></article><article><span>03</span><h2>Become the hazard.</h2><p>Green cores grant experience. Each level offers a weapon specialization, a mutation, and room for a new weapon. Carry up to four weapons. Your last chosen weapon stays in focus. The build path shows its evolution key. Two rerolls per run. Supply caches restore health, award salvage, and draw in nearby cores.</p></article><article><span>04</span><h2>Get home.</h2><p>Titans arrive at 1:30, 3:30, and 6:30. Dodge their projectile rings and radiation warnings. At 8:00, follow the cyan marker. Stay inside the beacon for eight seconds to extract. Endless mode has no extraction. Once the beacon opens, you can choose Overtime: four more minutes for 75% bonus salvage, a full heal, and more titans.</p></article></div><div class="section-label">WEAPON EVOLUTIONS <span>LEVEL 5 + REQUIRED MUTATION</span></div><div class="evolution-list">${Object.entries(
+  return `<div class="menu-page">${navigation()}${heading('READ THIS. STAY ALIVE.', 'FIELD MANUAL.')}<div class="guide-grid"><article><span>01</span><h2>Keep your thumb moving.</h2><p>Touch and drag anywhere on the field. A floating stick follows your thumb. Drag a little to walk, further to run. Weapons aim and fire automatically. A mouse drag works too.</p></article><article><span>02</span><h2>Use both hands.</h2><p>Keep moving with one thumb. Tap Dash with the other to slip through danger. The second button uses your equipped ability: blast, heal, overclock, freeze, or deploy a sentry. Both abilities recharge automatically. Change your active ability on your hero’s Loadout page.</p></article><article><span>03</span><h2>Become the hazard.</h2><p>Green cores grant experience. Each level offers a weapon specialization, a mutation, and room for a new weapon. Carry up to four weapons. Your last chosen weapon stays in focus. The build path shows its evolution key. Two rerolls per run. Supply caches restore health, award salvage, and draw in nearby cores.</p></article><article><span>04</span><h2>Get home.</h2><p>Titans arrive at 1:30, 3:30, and 6:30. Dodge their projectile rings and radiation warnings. At 8:00, follow the cyan marker. Stay inside the beacon for eight seconds to extract. Endless mode has no extraction. Once the beacon opens, you can choose Overtime: four more minutes for 75% bonus salvage, a full heal, and more titans.</p></article></div><div class="section-label">WEAPON EVOLUTIONS <span>LEVEL 5 + REQUIRED MUTATION</span></div><div class="evolution-list">${Object.entries(
     EVOLUTIONS,
   )
     .map(([id, e]) => [
@@ -765,49 +755,6 @@ function guideScreen() {
     .join(
       '',
     )}</div><div class="install-help"><h2>Take the zone with you.</h2><p>On iPhone or iPad: open in Safari, tap Share, then Add to Home Screen. On Android: choose Install app from the browser menu. After one complete online load, the installed game can launch offline. Progress is stored on this device; clearing site data removes it.</p>${action(installPrompt ? 'INSTALL GAME ↗' : 'INSTALL / HOME SCREEN', 'install', 'secondary')}</div></div>`;
-}
-function settingsScreen() {
-  return `<div class="menu-page settings-page"><div class="menu-nav">${action('← BACK', 'settings-back', 'text-button')}</div>${heading('MAKE YOURSELF AT HOME', 'FIELD SETTINGS.')}<div class="settings-list">${[
-    [
-      'sound',
-      'Sound effects',
-      'Weapon fire, impacts, abilities, and interface sounds.',
-    ],
-    ['music', 'Wasteland score', 'An original procedural ambient soundtrack.'],
-    [
-      'numbers',
-      'Damage numbers',
-      'Show damage and critical hit values in combat.',
-    ],
-    [
-      'radar',
-      'Field radar',
-      'Nearby threats, objectives, supplies, and extraction.',
-    ],
-    [
-      'leftHanded',
-      'Left-handed abilities',
-      'Move Dash and your active ability to the left side.',
-    ],
-    [
-      'haptics',
-      'Haptic feedback',
-      'A little kick when it matters. Supported devices only.',
-    ],
-    ['shake', 'Screen shake', 'Camera impact during explosions and damage.'],
-    [
-      'quality',
-      'Visual quality',
-      'Low reduces particle atmosphere and display resolution.',
-    ],
-  ]
-    .map(
-      ([id, title, desc]) =>
-        `<button data-action="setting" data-value="${id}" aria-pressed="${id === 'quality' ? profile.settings.quality === 'high' : profile.settings[id]}"><span><strong>${title}</strong><small>${desc}</small></span><b>${id === 'quality' ? profile.settings.quality.toUpperCase() : profile.settings[id] ? 'ON' : 'OFF'}</b></button>`,
-    )
-    .join(
-      '',
-    )}</div>${action('ENTER / EXIT FULLSCREEN ↗', 'fullscreen', 'secondary')}<div class="backup-actions">${action('EXPORT SAVE', 'export', 'secondary')}${action('RESTORE BACKUP', 'import', 'secondary')}</div><p class="subtle">Installed mode fills the screen without the browser toolbar. Progress saves automatically after each run.</p></div>`;
 }
 function pauseScreen() {
   return `<div class="pause-page">${heading('SIGNAL ON HOLD', 'TAKE A BREATH.', 'The zone can wait.')}<div class="run-summary"><span>${formatTime(game.time)} SURVIVED</span><span>${game.kills} KILLS</span><span>LEVEL ${game.level}</span></div><div class="pause-actions">${action('BACK TO THE FIELD ↗', 'resume')}${action('SETTINGS', 'settings', 'secondary')}${action('END OPERATION', 'abandon', 'text-button')}</div><div class="run-summary"><span>${game.difficulty.name.toUpperCase()}</span><span>${game.eventsCompleted} EVENTS</span><span>${game.eliteKills} ELITES</span><span>◈ ${game.scrap} SALVAGE</span></div><div class="section-label">CURRENT ARSENAL</div><div class="pause-weapons">${Object.entries(
@@ -858,7 +805,9 @@ function endScreen() {
     chapterId =
       CHAPTERS.find((c) => !profile.chapters.includes(c.id))?.id ||
       completed.id;
-  return `<div class="end-page"><div class="end-icon">${won ? '✦' : '☢'}</div>${heading(won ? 'EXTRACTION CONFIRMED' : 'OPERATOR SIGNAL LOST', won ? 'ANOTHER<br><em>SUNRISE.</em>' : 'THE ZONE<br><em>REMEMBERS.</em>', won ? 'You brought yourself home. That’s enough for today.' : 'Every run leaves something behind. Make it count.')}<div class="record-stats"><div><strong>${formatTime(game.time)}</strong><span>SURVIVED</span></div><div><strong>${game.kills}</strong><span>INFECTED</span></div><div><strong>${game.bossKills}</strong><span>TITANS</span></div><div><strong>${game.level}</strong><span>LEVEL</span></div></div><div class="salvage-earned"><span>SALVAGE RECOVERED</span><strong>+${result?.earned || 0} ◈</strong></div>${result?.unlocked.length ? `<div class="unlocked">${result.unlocked.map((a) => `<span>✦ ${a.name} <b>+${a.reward} ◈</b></span>`).join('')}</div>` : ''}${result?.fieldUnlocks?.length ? `<div class="field-rewards"><div class="eyebrow">NEW FIELD UNLOCKS · FREE</div>${result.fieldUnlocks.map((r) => `<p><strong>${r.name}</strong><span>${r.kind === 'operator' ? 'HERO + SIGNATURE GEAR' : r.kind.toUpperCase()}</span></p>`).join('')}</div>` : ''}${result?.mastery?.rewards.length ? `<div class="field-rewards"><div class="eyebrow">${result.mastery.hero.toUpperCase()} MASTERY REWARDS</div>${result.mastery.rewards.map((name) => `<p><strong>${name}</strong><span>PERMANENT UNLOCK</span></p>`).join('')}</div>` : ''}${completed ? `<article class="chapter-debrief"><div class="eyebrow">CHAPTER COMPLETE · +${completed.reward} SALVAGE</div><h2>${completed.title}</h2><p>${completed.debrief}</p>${profile.chapters.length === CHAPTERS.length ? '<strong>CAMPAIGN COMPLETE · THANK YOU FOR PLAYING</strong>' : ''}</article>` : ''}<div class="run-summary"><span>${game.eventsCompleted} EVENTS</span><span>${game.eliteKills} ELITES</span><span>${Math.round(game.damageDealt).toLocaleString()} DAMAGE</span></div><div class="end-actions">${action(completed ? 'CONTINUE STORY ↗' : 'ONE MORE RUN ↗', 'start')}${action('VIEW BUNKER UNLOCKS', 'workshop', 'secondary')}</div></div>`;
+  if (completed && profile.deployment.chapter !== chapterId)
+    rememberDeployment();
+  return renderResults(menuContext(), game, result, completed);
 }
 function renderUI() {
   const playing = game.state === 'playing',
@@ -866,10 +815,11 @@ function renderUI() {
   document.body.classList.toggle('left-handed', profile.settings.leftHanded);
   sound.setActive(playing);
   $('hud').hidden = !playing;
-  $('overlay').classList.toggle(
-    'home-overlay',
-    screen === 'home' && game.state === 'ready',
-  );
+  $('overlay').classList.toggle('home-overlay', false);
+  const polishedMenu =
+    (screen !== 'run' && !['confirm', 'import-confirm'].includes(screen)) ||
+    ['dead', 'won'].includes(game.state);
+  $('overlay').classList.toggle('ux-overlay', polishedMenu);
   $('overlay').hidden = playing;
   $('update-banner').hidden = !waitingWorker || game.state !== 'ready';
   const stamp = `${screen}:${game.state}:${game.level}:${game.pendingLevels}:${game.rerolls}`;
@@ -886,11 +836,22 @@ function renderUI() {
               ? (
                   {
                     home: homeScreen,
+                    heroes: () => renderHeroes(menuContext()),
+                    hero: () => renderHero(menuContext()),
+                    equipment: () => renderEquipment(menuContext()),
+                    deployment: () => renderDeployment(menuContext()),
+                    'zone-detail': () => renderZone(menuContext()),
+                    kits: () => renderKits(menuContext()),
+                    'replace-run': () => renderReplaceRun(menuContext()),
                     workshop: workshopScreen,
                     records: recordsScreen,
-                    guide: guideScreen,
+                    guide: () =>
+                      decorateLegacy(
+                        guideScreen(),
+                        'records',
+                        game.state !== 'paused',
+                      ),
                     campaign: campaignScreen,
-                    codex: codexScreen,
                   }[screen] || homeScreen
                 )()
               : game.state === 'relic'
@@ -902,8 +863,27 @@ function renderUI() {
                     : ['dead', 'won'].includes(game.state)
                       ? endScreen()
                       : homeScreen();
-    const view = `${screen}:${screen === 'workshop' ? shopTab : ''}:${inRun ? `${game.state}:${game.state === 'upgrade' ? game.level : ''}` : ''}`;
+    const page =
+      screen === 'workshop'
+        ? `${bunkerTab}:${armoryType}`
+        : screen === 'hero'
+          ? `${inspectedHero}:${heroTab}`
+          : screen === 'equipment'
+            ? `${inspectedHero}:${equipmentKind}:${inventoryFilter}`
+            : screen === 'records'
+              ? recordTab
+              : '';
+    const view = `${screen}:${page}:${inRun ? `${game.state}:${game.state === 'upgrade' ? game.level : ''}` : ''}`;
     renderMenu(html, view);
+    menuHeaderObserver.disconnect();
+    const header = $('overlay').querySelector('.ux-header');
+    if (header) {
+      $('overlay').style.setProperty(
+        '--ux-header-height',
+        `${header.getBoundingClientRect().height}px`,
+      );
+      menuHeaderObserver.observe(header);
+    }
   }
   if (!playing) return;
   const p = game.player;

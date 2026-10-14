@@ -195,7 +195,7 @@ export function unlockHint(profile, kind, target) {
   if (kind === 'weapon' || kind === 'ability') {
     const hero = OPERATORS.find((o) => o[kind] === target);
     if (hero)
-      return `Also included with ${hero.name}. Earn or recruit this hero in Unlocks.`;
+      return `Also included with ${hero.name}. Earn or recruit this hero in Heroes.`;
   }
   return '';
 }
