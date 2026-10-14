@@ -46,12 +46,19 @@ function worker() {
       if (!stores.has(name)) stores.set(name, new Map());
       const store = stores.get(name);
       return {
-        addAll: async (urls) => {
-          for (const url of urls)
+        addAll: async (requests) => {
+          for (const request of requests) {
+            assert.equal(
+              request.cache,
+              'reload',
+              'a new build must bypass stale HTTP cache entries',
+            );
+            const url = request.url;
             store.set(url, {
               url,
               body: url.endsWith('index.html') ? 'game HTML' : 'asset',
             });
+          }
         },
         match: async (request, options) => {
           assert.equal(
@@ -79,6 +86,7 @@ function worker() {
     self,
     caches,
     URL,
+    Request,
     fetch: async () => {
       throw new Error('offline');
     },

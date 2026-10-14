@@ -51,7 +51,7 @@ const CACHE = 'nuclear-survivors-${version}';
 const PREFIX = 'nuclear-survivors-';
 const FILES = ${JSON.stringify(files)};
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(FILES.map(file => new URL(file, self.registration.scope).href))));
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(FILES.map(file => new Request(new URL(file, self.registration.scope).href, { cache: 'reload' })))));
 });
 self.addEventListener('activate', event => {
   // Keep the previous build so a tab already loading its HTML can still fetch its hashed assets.

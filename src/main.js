@@ -914,7 +914,7 @@ renderUI();
 requestAnimationFrame(frame);
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   navigator.serviceWorker
-    .register(`${import.meta.env.BASE_URL}sw.js`)
+    .register(`${import.meta.env.BASE_URL}sw.js`, { updateViaCache: 'none' })
     .then((reg) => {
       const waiting = () => {
         waitingWorker =
