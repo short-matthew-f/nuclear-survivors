@@ -58,6 +58,12 @@
           <div><i id="objective-progress"></i></div>
         </div>
         <div id="buff-status"></div>
+        <div id="combat-objective" hidden>
+          <strong id="combat-objective-title"></strong
+          ><span id="combat-objective-detail"></span>
+          <div><i id="combat-objective-progress"></i></div>
+        </div>
+        <div id="hit-notice" hidden></div>
         <div id="mission-hud" hidden></div>
         <button id="overtime" hidden>
           OVERTIME ↗ <small>+4 MIN · +75% SALVAGE</small>
@@ -78,6 +84,14 @@
         </div>
       </div>
       <section id="overlay" class="overlay" aria-label="Game menu"></section>
+      <div id="resume-cover" hidden role="region" aria-label="Resume countdown">
+        <div class="resume-orientation">
+          <p>Find your survivor. The field is paused.</p>
+          <strong id="resume-count" aria-live="polite">3</strong
+          ><button id="resume-now">Resume now</button
+          ><button id="resume-cancel">Stay paused</button>
+        </div>
+      </div>
       <input
         id="import-save"
         type="file"

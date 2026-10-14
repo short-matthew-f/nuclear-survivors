@@ -1,3 +1,4 @@
+import { drawThreats, drawHitFeedback } from './threat-render.js';
 import { distance } from './game.js';
 import { weaponPattern } from './build.js';
 import { artUrl } from './art.js';
@@ -571,35 +572,6 @@ export function createRenderer(canvas) {
       if (e.type === 'boss') {
         const t = e.telegraph;
         if (t) {
-          if (['charge', 'spores'].includes(t.kind)) {
-            ctx.strokeStyle = '#ffbc9877';
-            ctx.lineWidth = t.kind === 'charge' ? 35 : 55;
-            ctx.beginPath();
-            ctx.moveTo(e.x, e.y);
-            ctx.lineTo(t.tx, t.ty);
-            ctx.stroke();
-          } else if (t.kind === 'beams') {
-            for (
-              let i = 0;
-              i < Math.max(1, e.parts.filter((p) => p.hp > 0).length);
-              i++
-            ) {
-              const a =
-                t.angle +
-                (i * TAU) / Math.max(1, e.parts.filter((p) => p.hp > 0).length);
-              ctx.strokeStyle = '#ffd6aa88';
-              ctx.lineWidth = 4;
-              ctx.setLineDash([10, 8]);
-              ctx.beginPath();
-              ctx.moveTo(e.x, e.y);
-              ctx.lineTo(e.x + Math.cos(a) * 440, e.y + Math.sin(a) * 440);
-              ctx.stroke();
-              ctx.setLineDash([]);
-            }
-          } else {
-            circle(ctx, t.tx, t.ty, 95, '#ffbc981c');
-            ring(ctx, t.tx, t.ty, 95, '#ffbc98', 3);
-          }
           ctx.fillStyle = '#ffe4b8';
           ctx.font = 'bold 11px monospace';
           ctx.textAlign = 'center';
@@ -786,10 +758,6 @@ export function createRenderer(canvas) {
       ctx.lineTo(b.x - b.vx * 0.025, b.y - b.vy * 0.025);
       ctx.stroke();
     }
-    for (const b of g.hostile) {
-      circle(ctx, b.x, b.y, b.radius + 3, '#d6c26b22');
-      circle(ctx, b.x, b.y, b.radius, '#e2bc78');
-    }
     const orbit = g.weapons.orbit;
     if (orbit) {
       const pattern = weaponPattern(g, 'orbit');
@@ -844,6 +812,7 @@ export function createRenderer(canvas) {
       circle(ctx, s.x, s.y, 2, s.color);
     }
     ctx.globalAlpha = 1;
+    drawThreats(ctx, g);
     for (const t of g.turrets) {
       ctx.save();
       ctx.translate(t.x, t.y);
@@ -856,7 +825,8 @@ export function createRenderer(canvas) {
       ctx.restore();
       ring(ctx, t.x, t.y, 26, '#a8d7ff66');
     }
-    if (p.invulnerable <= 0 || Math.floor(p.invulnerable * 18) % 2) {
+    {
+      // Keep the survivor visible; a hit ring communicates damage without blinking.
       circle(ctx, p.x + 2, p.y + 8, 17, '#09130c88');
       circle(ctx, p.x, p.y, 25, '#101c25cc');
       ring(ctx, p.x, p.y, 25, '#fff0ae', 2.5);
@@ -902,6 +872,7 @@ export function createRenderer(canvas) {
       }
       ctx.restore();
     }
+    drawHitFeedback(ctx, g);
     if (g.weapons.drone) {
       const w = g.weapons.drone,
         count = weaponPattern(g, 'drone').count;
@@ -954,7 +925,7 @@ export function createRenderer(canvas) {
       }
     }
     if (p.hp / p.maxHp < 0.3 && g.state === 'playing') {
-      ctx.fillStyle = `rgba(160,45,32,${0.06 + Math.sin(ambient * 4) * 0.03})`;
+      ctx.fillStyle = `rgba(160,45,32,${settings.shake ? 0.06 + Math.sin(ambient * 4) * 0.03 : 0.06})`;
       ctx.fillRect(0, 0, width, height);
     }
     if (g.state === 'playing') {

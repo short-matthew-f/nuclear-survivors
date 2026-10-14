@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#101810" />
+    <meta
+      name="description"
+      content="A touch-first survival roguelite. Enter the exclusion zone. Adapt. Extract."
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+    <link rel="icon" type="image/svg+xml" href="./icons/icon.svg" />
+    <title>Nuclear Survivors</title>
+  </head>
+  <body>
+    <main id="app" aria-label="Nuclear Survivors">
+      <canvas
+        id="game"
+        aria-label="Survival arena. Drag to move. Weapons fire automatically."
+      ></canvas>
+      <div id="hud" hidden>
+        <div class="hud-top">
+          <div class="vitals">
+            <div class="vitals-label">
+              <span id="operator-label">NOMAD</span
+              ><span id="health-label">100 / 100</span>
+            </div>
+            <div class="health-track"><div id="health"></div></div>
+            <div class="hud-meta">
+              <span id="level">LV 1</span><span id="kills">0 KILLS</span>
+            </div>
+          </div>
+          <div class="clock">
+            <strong id="timer">00:00</strong
+            ><span id="phase">EXTRACTION IN 08:00</span>
+          </div>
+          <button class="icon-button" id="pause" aria-label="Pause game">
+            Ⅱ
+          </button>
+        </div>
+        <div class="xp-track"><div id="xp"></div></div>
+        <div id="boss-hud" hidden>
+          <span id="boss-name"></span>
+          <div><i id="boss-health"></i></div>
+        </div>
+        <div id="announcement" role="status" aria-live="polite"></div>
+        <div id="loadout"></div>
+        <div id="field-objective" hidden>
+          <strong id="objective-name"></strong
+          ><small id="objective-detail"></small
+          ><small id="objective-instruction"></small>
+          <div><i id="objective-progress"></i></div>
+        </div>
+        <div id="buff-status"></div>
+        <div id="combat-objective" hidden>
+          <strong id="combat-objective-title"></strong
+          ><span id="combat-objective-detail"></span>
+          <div><i id="combat-objective-progress"></i></div>
+        </div>
+        <div id="hit-notice" hidden></div>
+        <div id="mission-hud" hidden></div>
+        <button id="overtime" hidden>
+          OVERTIME ↗ <small>+4 MIN · +75% SALVAGE</small>
+        </button>
+        <div id="touch-hint">
+          DRAG ANYWHERE TO MOVE <span>WEAPONS FIRE AUTOMATICALLY</span>
+        </div>
+        <div class="abilities">
+          <button id="dash" class="ability" aria-label="Dash">
+            <span>⤳</span><small>DASH</small><b></b></button
+          ><button id="nova" class="ability nova" aria-label="Shockwave">
+            <span>✺</span><small>SHOCKWAVE</small><b></b>
+          </button>
+        </div>
+        <div id="extract-hud" hidden>
+          EXTRACTING <span id="extract-percent">0%</span>
+          <div><i id="extract-fill"></i></div>
+        </div>
+      </div>
+      <section id="overlay" class="overlay" aria-label="Game menu"></section>
+      <div id="resume-cover" hidden role="region" aria-label="Resume countdown">
+        <div class="resume-orientation">
+          <p>Find your survivor. The field is paused.</p>
+          <strong id="resume-count" aria-live="polite">3</strong
+          ><button id="resume-now">Resume now</button
+          ><button id="resume-cancel">Stay paused</button>
+        </div>
+      </div>
+      <input
+        id="import-save"
+        type="file"
+        accept="application/json,.json"
+        hidden
+      />
+      <div id="toast" role="status" aria-live="polite"></div>
+      <div id="update-banner" hidden>
+        New field build ready.<button id="apply-update">UPDATE</button>
+      </div>
+    </main>
+    <nav
+      id="fixture-nav"
+      style="
+        position: fixed;
+        bottom: 5px;
+        left: 5px;
+        z-index: 15;
+        display: flex;
+        gap: 4px;
+      "
+    >
+      <button data-scene="upgrade">Upgrade</button
+      ><button data-scene="relic">Relic</button
+      ><button data-scene="busy">Busy field</button
+      ><button data-scene="defeat">Defeat</button
+      ><button id="fixture-hide">Hide fixture controls</button>
+    </nav>
+    <script type="module">
+      import '/src/style.css';
+      import {
+        createGame,
+        seededRandom,
+        spawnEnemy,
+        hurtPlayer,
+      } from '/src/game.js';
+      import { createRenderer } from '/src/render.js';
+      import { prepareBoss } from '/src/bosses.js';
+      import { freshProfile } from '/src/profile.js';
+      import { renderResults } from '/src/presentation.js';
+      import {
+        renderUpgradeChoices,
+        renderRelicChoices,
+        primaryObjective,
+      } from '/src/combat-ux.js';
+      import { UPGRADES } from '/src/content.js';
+      import { beginEvent } from '/src/expedition.js';
+      import { RELICS } from '/src/relics.js';
+      const renderer = createRenderer(document.querySelector('canvas'));
+      new ResizeObserver(() => renderer.resize('high')).observe(
+        document.querySelector('canvas'),
+      );
+      renderer.resize('high');
+      let g,
+        scene = 'upgrade';
+      function load(next) {
+        scene = next;
+        g = createGame(seededRandom('ux'), { chapter: 'signal' });
+        g.time = 240;
+        g.state = 'playing';
+        g.level = 12;
+        g.weapons = {
+          carbine: { level: 3, clock: 0, evolved: false },
+          orbit: { level: 3, clock: 0, evolved: false },
+          pulse: { level: 3, clock: 0, evolved: false },
+          scatter: { level: 3, clock: 0, evolved: false },
+        };
+        g.choices = ['carbine', 'damage', 'pulse'].map((id) =>
+          UPGRADES.find((u) => u.id === id),
+        );
+        g.relicChoices = RELICS.slice(0, 3).map((r) => r.id);
+        for (let i = 0; i < 70; i++) {
+          const a = i * 2.4,
+            r = 65 + (i % 6) * 30;
+          spawnEnemy(
+            g,
+            i % 5 === 0 ? 'brute' : 'walker',
+            Math.cos(a) * r,
+            Math.sin(a) * r,
+          );
+        }
+        const boss = spawnEnemy(g, 'boss', -90, -160);
+        prepareBoss(boss);
+        boss.telegraph = { kind: 'slam', warn: 0.6, tx: 90, ty: 20 };
+        g.hazards = [
+          { x: -85, y: 75, radius: 60, warn: 0.8, life: 3 },
+          {
+            kind: 'beam',
+            x: -160,
+            y: -90,
+            angle: 1.1,
+            length: 440,
+            radius: 20,
+            warn: 0,
+            life: 3,
+          },
+        ];
+        g.effects = Array.from({ length: 25 }, (_, i) => ({
+          kind: 'ring',
+          x: Math.cos(i) * 130,
+          y: Math.sin(i) * 130,
+          radius: 70,
+          life: 0.6,
+          maxLife: 1,
+          color: '#c8ef9b',
+        }));
+        g.hostile = Array.from({ length: 20 }, (_, i) => ({
+          x: Math.cos(i) * 140,
+          y: Math.sin(i) * 140,
+          vx: 50,
+          vy: 20,
+          radius: 6,
+          life: 2,
+        }));
+        beginEvent(g, 'rescue');
+        const overlay = document.querySelector('#overlay');
+        overlay.hidden = scene === 'busy';
+        overlay.className =
+          scene === 'defeat' ? 'overlay ux-overlay' : 'overlay combat-overlay';
+        document.querySelector('#hud').hidden = scene !== 'busy';
+        document.querySelector('#touch-hint').hidden = true;
+        document.querySelector('#phase').textContent = 'Rescue 04:00';
+        document.querySelector('#timer').textContent = '04:00';
+        document.querySelector('#level').textContent = `LV ${g.level}`;
+        const objective = primaryObjective(g);
+        document.querySelector('#combat-objective').hidden = false;
+        document.querySelector('#combat-objective-title').textContent =
+          objective.title;
+        document.querySelector('#combat-objective-detail').textContent =
+          objective.detail;
+        document.querySelector('#combat-objective-progress').style.width =
+          `${objective.progress * 100}%`;
+        document.querySelector('#combat-objective').dataset.kind =
+          objective.kind;
+        if (scene === 'upgrade') {
+          g.state = 'upgrade';
+          overlay.innerHTML = renderUpgradeChoices(g);
+        }
+        if (scene === 'relic') {
+          g.state = 'relic';
+          overlay.innerHTML = renderRelicChoices(g);
+        }
+        if (scene === 'defeat') {
+          g.player.hp = 12;
+          hurtPlayer(g, 50, { kind: 'beam', x: -100, y: 0 });
+          overlay.innerHTML = renderResults(
+            { profile: { ...freshProfile(), scrap: 50 } },
+            g,
+            { earned: 50 },
+            null,
+          );
+        }
+      }
+      document.querySelector('#fixture-nav').onclick = (e) => {
+        if (e.target.dataset.scene) load(e.target.dataset.scene);
+        if (e.target.id === 'fixture-hide')
+          document.querySelector('#fixture-nav').hidden = true;
+      };
+      load(new URLSearchParams(location.search).get('scene') || 'upgrade');
+      function frame() {
+        renderer.render(
+          g,
+          { quality: 'high', numbers: true, shake: false },
+          null,
+          3,
+        );
+        requestAnimationFrame(frame);
+      }
+      frame();
+    </script>
+  </body>
+</html>

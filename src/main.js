@@ -1,3 +1,10 @@
+import {
+  renderUpgradeChoices,
+  renderRelicChoices,
+  primaryObjective,
+  createResumeGate,
+} from './combat-ux.js';
+import { hitExplanation } from './damage.js';
 import './style.css';
 import {
   createGame,
@@ -20,7 +27,6 @@ import {
   LEGACY_WEAPONS,
   CHAPTERS,
   DIFFICULTIES,
-  FIELD_EVENTS,
   EVOLUTIONS,
 } from './content.js';
 import {
@@ -34,16 +40,14 @@ import {
   loadoutFor,
   equipLoadout,
 } from './profile.js';
-import { upgradePreview, evolutionProgress, WEAPON_LIMIT } from './build.js';
 import { FIELD_UNLOCKS } from './unlocks.js';
 import { artUrl } from './art.js';
 import { createRenderer } from './render.js';
-import { commitOvertime, missionGoals, missionReady } from './expedition.js';
+import { commitOvertime, missionReady } from './expedition.js';
 import { abilityFor } from './abilities.js';
 import { createAudio } from './audio.js';
 import { equipHeroStyle, branchForGame, abilityCooldown } from './mastery.js';
 import { RELICS, applyRelic } from './relics.js';
-import { eventInstruction } from './expedition.js';
 import { createMenuRenderer } from './menu.js';
 import { MENU_ROOTS, validateDeployment } from './menu-model.js';
 import {
@@ -75,6 +79,7 @@ const $ = (id) => document.getElementById(id),
         `${entry.target.getBoundingClientRect().height}px`,
       );
   });
+const resumeGate = createResumeGate();
 let profile = parseProfile(null),
   storageAvailable = true;
 try {
@@ -188,6 +193,7 @@ function navigation() {
   return `<div class="menu-nav">${action('← Back', 'back', 'text-button')}<span class="currency">◈ ${profile.scrap} <small>SALVAGE</small></span></div>`;
 }
 function start() {
+  resumeGate.cancel();
   navHistory = [];
   const daily = mode === 'daily',
     chapter =
@@ -267,6 +273,11 @@ function menu(next = 'home') {
   renderUI();
 }
 function pause() {
+  if (resumeGate.active) {
+    resumeGate.cancel();
+    overlayStamp = '';
+    renderUI();
+  }
   if (game.state === 'playing') {
     game.state = 'paused';
     checkpoint();
@@ -275,15 +286,30 @@ function pause() {
     renderUI();
   }
 }
-function resume() {
-  if (game.state === 'paused') {
-    game.state = 'playing';
-    screen = 'run';
-    pointer = null;
-    overlayStamp = '';
-    renderUI();
-  }
+function finishResume() {
+  resumeGate.cancel();
+  if (game.state !== 'paused') return;
+  game.state = 'playing';
+  screen = 'run';
+  pointer = null;
+  overlayStamp = '';
+  renderUI();
 }
+function resume() {
+  if (game.state !== 'paused' || resumeGate.active) return;
+  resumeGate.start();
+  screen = 'run';
+  pointer = null;
+  overlayStamp = '';
+  renderUI();
+}
+$('resume-now').onclick = finishResume;
+$('resume-cancel').onclick = () => {
+  resumeGate.cancel();
+  overlayStamp = '';
+  renderUI();
+};
+
 function input() {
   if (!pointer) return { x: 0, y: 0 };
   const dx = (pointer.x - pointer.ox) / 44,
@@ -320,6 +346,7 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (game.state === 'playing') pause();
+    else if (resumeGate.active) pause();
     else if (game.state === 'paused') resume();
   }
 });
@@ -697,15 +724,9 @@ $('overlay').addEventListener('click', async (e) => {
   else if (act === 'fullscreen') await fullscreen();
 });
 function relicScreen() {
-  return `<div class="upgrade-page">${heading('RARE FIELD RELIC', 'CHANGE THE RULES.', 'Choose one permanent effect for this operation. Relics do not occupy weapon slots.')}<div class="choices">${game.relicChoices
-    .map((id) => {
-      const r = RELICS.find((r) => r.id === id);
-      return `<button class="choice relic-card" data-action="relic" data-value="${id}"><span class="choice-icon" style="color:${r.color}">${r.icon}</span><div class="eyebrow">RARE RELIC</div><h2>${r.name}</h2><p>${r.description}</p><div class="choice-bottom">INSTALL RELIC <b>↗</b></div></button>`;
-    })
-    .join(
-      '',
-    )}</div><p class="subtle">${game.relics.length} / ${RELICS.length} relics installed · operation paused</p></div>`;
+  return renderRelicChoices(game);
 }
+
 function menuContext() {
   return {
     profile,
@@ -778,20 +799,9 @@ function pauseScreen() {
   }<div class="section-label">ACTIVE BOUNTIES</div><div class="pause-contracts"><span>${Math.min(100, game.kills)} / 100 INFECTED</span><span>${Math.min(3, game.crates)} / 3 CACHES</span><span>${Math.min(1, game.bossKills)} / 1 TITAN</span></div></div>`;
 }
 function upgradeScreen() {
-  const focus = game.weapons[game.focusWeapon]
-    ? game.focusWeapon
-    : Object.keys(game.weapons)[0];
-  const evolution = evolutionProgress(game, focus);
-  return `<div class="upgrade-page">${heading(`LEVEL ${game.level} / CHOOSE YOUR BUILD`, 'MAKE IT<br><em>COUNT.</em>', 'Specialize your weapon. Add a new tool. Find your evolution.')}<div class="build-path"><div><strong>${WEAPONS[focus].name} → ${evolution.name}</strong><small>${evolution.evolved ? 'EVOLVED' : `WEAPON ${evolution.rank}/5 · ${evolution.keyReady ? '✓' : '◇'} ${evolution.mutation}`}</small></div><span>${Object.keys(game.weapons).length}/${Math.max(WEAPON_LIMIT, Object.keys(game.weapons).length)} WEAPONS</span></div><div class="choices">${game.choices
-    .map((u) => {
-      const preview = upgradePreview(game, u.id);
-      const weapon = WEAPONS[u.id];
-      return `<button class="choice ${weapon ? 'weapon-choice' : ''} ${preview.evolves ? 'evolution-choice' : ''}" data-action="upgrade" data-value="${u.id}"><div class="choice-top"><span>${preview.lane}</span><small>${weapon ? `WEAPON ${preview.next}/5` : `RANK ${preview.next}`}</small></div><div class="choice-icon" ${weapon ? `style="color:${weapon.color}"` : ''}>${u.icon}</div><div class="choice-identity">${weapon ? weapon.name : u.rarity}</div><h2>${preview.title}</h2><ul class="upgrade-effects">${preview.lines.map((line) => `<li>${line}</li>`).join('')}</ul><div class="choice-bottom">${preview.evolves ? 'TRANSFORM YOUR WEAPON' : weapon && !game.weapons[u.id] ? 'ADD TO YOUR ARSENAL' : weapon ? 'INSTALL & FIRE IMMEDIATELY' : 'APPLY THIS ADAPTATION'} <b>↗</b></div></button>`;
-    })
-    .join(
-      '',
-    )}</div><div class="upgrade-footer"><span>${game.pendingLevels > 1 ? `${game.pendingLevels - 1} MORE CHOICES QUEUED` : 'FIELD SIMULATION PAUSED'}</span>${action(`↻ REROLL (${game.rerolls})`, 'reroll', 'text-button', game.rerolls ? '' : 'disabled')}</div></div>`;
+  return renderUpgradeChoices(game);
 }
+
 function endScreen() {
   if (!result) {
     clearCheckpoint();
@@ -814,13 +824,24 @@ function renderUI() {
     inRun = screen === 'run';
   document.body.classList.toggle('left-handed', profile.settings.leftHanded);
   sound.setActive(playing);
-  $('hud').hidden = !playing;
+  $('hud').hidden = !playing && !resumeGate.active;
+  $('resume-cover').hidden = !resumeGate.active;
+  if ($('resume-count').textContent !== String(resumeGate.seconds))
+    $('resume-count').textContent = resumeGate.seconds;
+  $('resume-cover').setAttribute(
+    'aria-label',
+    `Resuming in ${resumeGate.seconds} seconds`,
+  );
   $('overlay').classList.toggle('home-overlay', false);
   const polishedMenu =
     (screen !== 'run' && !['confirm', 'import-confirm'].includes(screen)) ||
     ['dead', 'won'].includes(game.state);
   $('overlay').classList.toggle('ux-overlay', polishedMenu);
-  $('overlay').hidden = playing;
+  $('overlay').classList.toggle(
+    'combat-overlay',
+    screen === 'run' && ['upgrade', 'relic', 'paused'].includes(game.state),
+  );
+  $('overlay').hidden = playing || resumeGate.active;
   $('update-banner').hidden = !waitingWorker || game.state !== 'ready';
   const stamp = `${screen}:${game.state}:${game.level}:${game.pendingLevels}:${game.rerolls}`;
   if (stamp !== overlayStamp && !playing) {
@@ -885,7 +906,7 @@ function renderUI() {
       menuHeaderObserver.observe(header);
     }
   }
-  if (!playing) return;
+  if (!playing && !resumeGate.active) return;
   const p = game.player;
   $('operator-label').textContent = game.operator.name.toUpperCase();
   $('health-label').textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`;
@@ -898,41 +919,26 @@ function renderUI() {
     game.mode === 'endless'
       ? 'NO EXTRACTION'
       : game.chapter && game.time >= game.extractionAt && !missionReady(game)
-        ? 'COMPLETE MISSION OBJECTIVES'
+        ? 'STORY OBJECTIVE'
         : game.extraction
           ? 'REACH THE BEACON'
-          : `EXTRACTION IN ${formatTime(Math.ceil(Math.max(0, game.extractionAt - game.time)))}`;
-  const mission = missionGoals(game);
-  $('mission-hud').hidden = !mission.length;
-  $('mission-hud').textContent = mission
-    .map(
-      (goal) =>
-        `${goal.progress >= goal.target ? '✓' : '◇'} ${goal.label} ${Math.min(goal.progress, goal.target)}/${goal.target}`,
-    )
-    .join(' · ');
-  const event = game.fieldEvent;
-  $('field-objective').hidden = !event;
-  if (event) {
-    const spec = FIELD_EVENTS[event.kind];
-    $('objective-name').textContent = spec.name;
-    $('objective-detail').textContent =
-      `${Math.ceil(Math.max(0, event.expires - game.time))}s · ${Math.round(distance(p, event))}m`;
-    $('objective-instruction').textContent = [
-      'escort',
-      'reactor',
-      'defense',
-    ].includes(event.kind)
-      ? eventInstruction(game, event)
-      : event.guards.some((id) =>
-            game.enemies.some((e) => e.id === id && e.hp > 0),
-          )
-        ? 'CLEAR THE ELITE GUARDS'
-        : distance(p, event) < 65
-          ? 'HOLD HERE TO COMPLETE'
-          : 'ENTER THE MARKED CIRCLE';
-    $('objective-progress').style.width =
-      `${Math.min(100, (event.progress / spec.duration) * 100)}%`;
+          : `Rescue ${formatTime(Math.ceil(Math.max(0, game.extractionAt - game.time)))}`;
+  $('mission-hud').hidden = true;
+  $('field-objective').hidden = true;
+  $('boss-hud').hidden = true;
+  const objective = primaryObjective(game);
+  $('combat-objective').hidden = !objective;
+  if (objective) {
+    $('combat-objective').dataset.kind = objective.kind;
+    $('combat-objective-title').textContent = objective.title;
+    $('combat-objective-detail').textContent = objective.detail;
+    $('combat-objective-progress').style.width = `${objective.progress * 100}%`;
   }
+  const recentHit = game.lastHit && game.time - game.lastHit.time < 1;
+  $('hit-notice').hidden = !recentHit;
+  if (recentHit)
+    $('hit-notice').textContent =
+      `−${Math.ceil(game.lastHit.amount)} HP · ${hitExplanation(game.lastHit)?.label || 'Hit taken'}`;
   $('buff-status').textContent =
     game.buffs.surge > 0
       ? `ϟ OVERCLOCK ${Math.ceil(game.buffs.surge)}s`
@@ -943,32 +949,10 @@ function renderUI() {
           : '';
   $('overtime').hidden = !game.extraction || game.overtime || !!game.daily;
   $('xp').style.width = `${(game.xp / game.xpNeeded) * 100}%`;
-  const boss = game.enemies.find((e) => e.type === 'boss');
-  $('boss-hud').hidden = !boss;
-  if (boss) {
-    $('boss-name').textContent =
-      `${boss.name} · PHASE ${boss.stage || 1} · ${boss.parts?.filter((p) => p.hp > 0).length || 0} PARTS${boss.exposed > 0 || boss.parts?.every((p) => p.hp <= 0) ? ' · CORE EXPOSED' : ''}`;
-    $('boss-health').style.width =
-      `${Math.max(0, (boss.hp / boss.maxHp) * 100)}%`;
-  }
   const message = game.eventUntil > game.time ? game.eventText : '';
   if ($('announcement').textContent !== message)
     $('announcement').textContent = message;
   $('announcement').classList.toggle('visible', !!message);
-  const loadout =
-    Object.entries(game.weapons)
-      .map(
-        ([id, w]) =>
-          `<div class="loadout-weapon ${w.evolved ? 'evolved' : ''}" title="${WEAPONS[id].name} level ${w.level}${w.evolved ? ', evolved' : ''}"><span style="color:${WEAPONS[id].color}">${WEAPONS[id].icon}</span><small>${w.evolved ? '✦' : w.level}</small></div>`,
-      )
-      .join('') +
-    game.relics
-      .map((id) => {
-        const r = RELICS.find((r) => r.id === id);
-        return `<div class="loadout-weapon relic-slot" title="${r.name}: ${r.description}"><span style="color:${r.color}">${r.icon}</span><small>✦</small></div>`;
-      })
-      .join('');
-  if ($('loadout').innerHTML !== loadout) $('loadout').innerHTML = loadout;
   $('touch-hint').hidden = game.time > 8 || game.distance > 120;
   for (const [id, timer, total] of [
     ['dash', p.dashTimer, p.dashCooldown],
@@ -1003,7 +987,8 @@ function frame(timestamp) {
   const dt = last ? Math.min(0.05, (timestamp - last) / 1000) : 0;
   last = timestamp;
   ambient += dt;
-  update(game, dt, input(), renderer.getView());
+  if (resumeGate.active && resumeGate.advance(dt)) finishResume();
+  update(game, resumeGate.active ? 0 : dt, input(), renderer.getView());
   if (game.player.hp < previousHp - 1) {
     haptic(25);
     tone(65, 0.12);

@@ -4,7 +4,7 @@ A fullscreen, touch-first survival roguelite in a radioactive exclusion zone. Dr
 
 **[Play the game](https://short-matthew-f.github.io/nuclear-survivors/)**
 
-## Field edition 1.5
+## Field edition 1.6
 
 - Edge-to-edge Canvas gameplay with a compact HUD. No page header, footer, sidebar, or keyboard movement.
 - A floating analog thumbstick, multi-touch dash and selectable active abilities, automatic aiming, optional sound, and supported-device haptics.
@@ -166,3 +166,13 @@ Four stable destinations organize preparation: **Deploy**, **Heroes**, **Bunker*
 Hero, mission, difficulty, zone, and chapter choices persist across reloads in the existing v2 profile. Locked heroes and sectors open details before an explicit scrap purchase. Research shows current and next bonuses. Debriefs show the complete scrap award, with secondary details collapsed and a direct retry/continue action.
 
 The supplied mobile UX handbook informed this revision. See [the design and verification notes](docs/mobile-ux-review.md) for scope, screenshots, and device-testing limits.
+
+## Combat presentation (1.6)
+
+Level-up and relic choices use compact comparable cards. Weapon cards retain exact simulation previews; evolution requirements expand on demand. The combat HUD prioritizes health, cooldowns, time, and one objective: extraction, a required active story event, a titan, an optional event, or the next story goal. Kills, arsenal details, and bounties remain available in pause.
+
+Enemy warnings use dashed outlines, active danger solid coral outlines, and patterned areas drawn over weapon effects. Enemy projectiles use pointed silhouettes. The survivor stays visible when hit; a local ring, source-direction marker, and brief HP-loss message distinguish received damage. Defeats include the recorded final source and an avoidance tip when known. Earlier checkpoints keep valid progression and do not invent missing hit history.
+
+Resuming starts a three-second orientation countdown while simulation stays paused. **Resume now** skips it; **Stay paused** cancels it. Backgrounding cancels the countdown. New operations and upgrade selection resume normally.
+
+`src/combat-ux.js` owns choice rendering, objective priority, and the UI-only resume clock. `src/damage.js` normalizes damage records and explanations; `src/threat-render.js` draws the late danger/received-hit layer. `tests/combat-ux.test.js` verifies collision attribution, revival/immunity, checkpoint migration, objective priority, and frozen resume timing. For visual checks, open `/tests/fixtures/combat-ux.html` during local development; this fixture never accesses saves and is excluded from the production build.

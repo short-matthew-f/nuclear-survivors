@@ -55,3 +55,7 @@ Keep simulation and content definitions browser-independent (`src/game.js`, `src
 ## Mobile Presentation (1.5)
 
 `src/presentation.js` owns pure menu markup; `src/menu-model.js` owns deployment validation, loadout summaries, goals, and research comparisons. `src/main.js` routes four destinations (Deploy, Heroes, Bunker, Records) and contextual subpages. Hero Loadout/Mastery/Appearance are separate from shared Bunker Research/Armory. Keep unlock and equip actions distinct. `src/menu.js` retains scroll, disclosures, and focus per view. Optional deployment fields must never invalidate older profiles. Test these behaviors in `tests/presentation.test.js` and `tests/menu.test.js`.
+
+## Combat Presentation (1.6)
+
+`src/combat-ux.js` owns upgrade/relic markup, primary objective priority, and the resume gate. Countdown orientation is UI-only; keep the simulation paused and cancel on backgrounding. `src/damage.js` owns normalized last-hit/fatal-hit records; attribute actual collision sources and never guess missing historical damage. Normalize optional hit fields during checkpoint migration. `src/threat-render.js` draws danger after weapon effects and local received-hit feedback. Keep visual warning geometry consistent with collision geometry. Verify changes in `tests/combat-ux.test.js`; `tests/fixtures/combat-ux.html` is a save-free development fixture only.

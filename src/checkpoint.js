@@ -1,3 +1,4 @@
+import { normalizeHit } from './damage.js';
 import { RELICS } from './relics.js';
 import { masteryBranch } from './mastery.js';
 import { createGame, seededRandom } from './game.js';
@@ -71,6 +72,8 @@ export function restoreRun(raw) {
     });
     // Version-one checkpoints predate expedition fields. Migrate only those optional additions.
     for (const key of [
+      'lastHit',
+      'deathReport',
       'branch',
       'outfit',
       'abilityUses',
@@ -323,6 +326,8 @@ export function restoreRun(raw) {
       zone: baseline.zone,
       difficulty: baseline.difficulty,
       settled: false,
+      lastHit: normalizeHit(data.lastHit),
+      deathReport: null,
     };
     game.choices = data.choices
       .map((c) => UPGRADES.find((u) => u.id === c.id))

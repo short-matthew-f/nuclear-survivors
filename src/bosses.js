@@ -54,11 +54,41 @@ export function breakBossPart(g, part) {
     3,
   );
 }
+export const bossChargeSpeed = (e) =>
+  e.parts.some((p) => p.hp > 0) ? 340 : 220;
+export function bossWarningAreas(e, t) {
+  if (t.kind === 'slam') return [{ x: t.tx, y: t.ty, radius: 95 }];
+  if (t.kind === 'beams') {
+    const count = Math.max(1, e.parts.filter((p) => p.hp > 0).length);
+    return Array.from({ length: count }, (_, i) => ({
+      kind: 'beam',
+      x: e.x,
+      y: e.y,
+      angle: t.angle + (i * Math.PI * 2) / count,
+      length: 440,
+      radius: 20,
+    }));
+  }
+  if (!['bloom', 'meltdown'].includes(t.kind)) return [];
+  const count = t.kind === 'bloom' ? 3 + e.stage : 3,
+    offset = t.kind === 'bloom' ? 95 : 100,
+    radius = t.kind === 'bloom' ? 45 : 55;
+  return Array.from({ length: count }, (_, i) => ({
+    x: t.tx + Math.cos((i * Math.PI * 2) / count) * offset,
+    y: t.ty + Math.sin((i * Math.PI * 2) / count) * offset,
+    radius,
+  }));
+}
+export const bossFanAngles = (e, target, count = 5 + e.stage * 2) =>
+  Array.from(
+    { length: count },
+    (_, i) =>
+      Math.atan2(target.y - e.y, target.x - e.x) + (i - (count - 1) / 2) * 0.18,
+  );
 function shots(g, e, count, fan = false) {
   for (let i = 0; i < count; i++) {
     const a = fan
-      ? Math.atan2(g.player.y - e.y, g.player.x - e.x) +
-        (i - (count - 1) / 2) * 0.18
+      ? bossFanAngles(e, g.player, count)[i]
       : (i * Math.PI * 2) / count + g.time * 0.3;
     g.hostile.push({
       x: e.x,
@@ -67,6 +97,7 @@ function shots(g, e, count, fan = false) {
       vy: Math.sin(a) * 135,
       life: 5,
       radius: 7,
+      source: { enemy: e.type, phase: e.phase },
     });
   }
 }
@@ -74,52 +105,35 @@ function strike(g, e, t) {
   const living = e.parts.filter((p) => p.hp > 0).length;
   if (t.kind === 'charge') {
     const d = Math.hypot(t.tx - e.x, t.ty - e.y) || 1;
-    e.vx = ((t.tx - e.x) / d) * (living ? 340 : 220);
-    e.vy = ((t.ty - e.y) / d) * (living ? 340 : 220);
+    e.vx = ((t.tx - e.x) / d) * bossChargeSpeed(e);
+    e.vy = ((t.ty - e.y) / d) * bossChargeSpeed(e);
     e.charge = 0.75;
   } else if (t.kind === 'slam') {
-    g.hazards.push({ x: t.tx, y: t.ty, radius: 95, warn: 0, life: 0.65 });
+    g.hazards.push({
+      ...bossWarningAreas(e, t)[0],
+      warn: 0,
+      life: 0.65,
+      source: { kind: 'impact', enemy: e.type, phase: e.phase },
+    });
     shots(g, e, 10 + e.stage * 2);
   } else if (t.kind === 'spores') {
     shots(g, e, 5 + e.stage * 2, true);
     for (let i = 0; i < living && g.enemies.length < 165; i++)
       spawnEnemy(g, 'runner', e.x + (i ? 40 : -40), e.y, 0.7);
-  } else if (t.kind === 'bloom') {
-    for (let i = 0; i < 3 + e.stage && g.hazards.length < 18; i++) {
-      const a = (i * Math.PI * 2) / (3 + e.stage);
+  } else if (['bloom', 'beams', 'meltdown'].includes(t.kind)) {
+    const timing = { bloom: [0.4, 3], beams: [0, 0.8], meltdown: [0.25, 2] }[
+      t.kind
+    ];
+    for (const area of bossWarningAreas(e, t)) {
+      if (g.hazards.length >= 18) break;
       g.hazards.push({
-        x: t.tx + Math.cos(a) * 95,
-        y: t.ty + Math.sin(a) * 95,
-        radius: 45,
-        warn: 0.4,
-        life: 3,
+        ...area,
+        source: { enemy: e.type, phase: e.phase },
+        warn: timing[0],
+        life: timing[1],
       });
     }
-  } else if (t.kind === 'beams') {
-    const count = Math.max(1, living);
-    for (let i = 0; i < count && g.hazards.length < 18; i++)
-      g.hazards.push({
-        kind: 'beam',
-        x: e.x,
-        y: e.y,
-        angle: t.angle + (i * Math.PI * 2) / count,
-        length: 440,
-        radius: 20,
-        warn: 0,
-        life: 0.8,
-      });
-    shots(g, e, 10 + e.stage * 2);
-  } else if (t.kind === 'meltdown') {
-    for (let i = 0; i < 3 && g.hazards.length < 18; i++) {
-      const a = (i * Math.PI * 2) / 3;
-      g.hazards.push({
-        x: t.tx + Math.cos(a) * 100,
-        y: t.ty + Math.sin(a) * 100,
-        radius: 55,
-        warn: 0.25,
-        life: 2,
-      });
-    }
+    if (t.kind === 'beams') shots(g, e, 10 + e.stage * 2);
   }
 }
 export function updateBoss(g, e, dt) {
@@ -163,7 +177,14 @@ export function updateBoss(g, e, dt) {
     e.y += ((g.player.y - e.y) / d) * e.speed * dt * move;
   }
   positionParts(e);
-  if (distance(e, g.player) < e.radius + 12) hurtPlayer(g, e.damage);
+  if (distance(e, g.player) < e.radius + 12)
+    hurtPlayer(g, e.damage, {
+      kind: 'contact',
+      enemy: e.type,
+      phase: e.phase,
+      x: e.x,
+      y: e.y,
+    });
 }
 export function beamContains(h, p) {
   const dx = p.x - h.x,

@@ -1,3 +1,4 @@
+import { recordHit } from './damage.js';
 import {
   DURATION,
   UPGRADES,
@@ -108,6 +109,8 @@ export function createGame(random = Math.random, options = {}) {
     revives: 0,
     shotsFired: 0,
     damageTaken: 0,
+    lastHit: null,
+    deathReport: null,
     state: 'ready',
     time: 0,
     kills: 0,
@@ -331,10 +334,11 @@ export function collectXp(g, amount) {
   }
   if (g.pendingLevels > 0 && g.state === 'playing') chooseUpgrades(g);
 }
-export function hurtPlayer(g, damage) {
+export function hurtPlayer(g, damage, source) {
   const p = g.player;
   if (p.invulnerable > 0 || g.state !== 'playing') return;
   const received = Math.max(1, damage - p.armor);
+  g.lastHit = recordHit(g, Math.min(p.hp, received), source);
   g.damageTaken += Math.min(p.hp, received);
   p.hp = Math.max(0, p.hp - received);
   p.invulnerable = 0.65;
@@ -346,7 +350,10 @@ export function hurtPlayer(g, damage) {
     g.hostile = [];
     burst(g, p.x, p.y, '#fff0ad', 30);
     announce(g, 'LAST LIGHT · ONE MORE CHANCE', 5);
-  } else if (p.hp === 0) g.state = 'dead';
+  } else if (p.hp === 0) {
+    g.deathReport = g.lastHit;
+    g.state = 'dead';
+  }
 }
 export function burst(g, x, y, color, count = 8) {
   for (let i = 0; i < count; i++) {
@@ -878,10 +885,18 @@ export function update(
         vy: Math.sin(a) * 125,
         life: 5,
         radius: 5,
+        source: { enemy: e.type, phase: e.phase || 0 },
       });
       e.attack = 2.6;
     }
-    if (distance(e, p) < e.radius + 12) hurtPlayer(g, e.damage || 12);
+    if (distance(e, p) < e.radius + 12)
+      hurtPlayer(g, e.damage || 12, {
+        kind: 'contact',
+        enemy: e.type,
+        phase: e.phase,
+        x: e.x,
+        y: e.y,
+      });
   }
   if (g.state === 'dead') return;
   updateExpedition(g, dt);
@@ -941,7 +956,12 @@ export function update(
     b.y += b.vy * dt;
     b.life -= dt;
     if (distance(b, p) < b.radius + 11) {
-      hurtPlayer(g, 12 * g.difficulty.scale);
+      hurtPlayer(g, 12 * g.difficulty.scale, {
+        ...b.source,
+        kind: 'projectile',
+        x: b.x,
+        y: b.y,
+      });
       b.life = 0;
     }
   }
@@ -982,7 +1002,12 @@ export function update(
       } else if (
         h.kind === 'beam' ? beamContains(h, p) : distance(p, h) < h.radius
       )
-        hurtPlayer(g, 8 * g.difficulty.scale);
+        hurtPlayer(g, 8 * g.difficulty.scale, {
+          ...h.source,
+          kind: h.kind === 'beam' ? 'beam' : h.source?.kind || 'radiation',
+          x: h.x,
+          y: h.y,
+        });
     }
   }
   g.enemies = g.enemies.filter((e) => e.hp > 0 && distance(e, p) < 1800);

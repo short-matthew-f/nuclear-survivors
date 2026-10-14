@@ -3969,3 +3969,390 @@ label {
     margin-left: var(--ux-rail-width);
   }
 }
+
+/* Combat decisions keep the comparison above ceremony. */
+.combat-choices {
+  width: 100%;
+  max-width: 820px;
+  margin: auto;
+  padding: 8px 0 20px;
+  color: #edf2e5;
+  font:
+    14px/1.45 Arial,
+    sans-serif;
+}
+.combat-choices h1 {
+  font:
+    700 25px/1.15 Arial,
+    sans-serif;
+  margin: 5px 0 8px;
+  letter-spacing: -0.5px;
+}
+.combat-choices header p {
+  font-size: 13px;
+  margin: 0 0 14px;
+  color: #cfddc4;
+}
+.combat-kicker {
+  font:
+    600 11px/1.4 Arial,
+    sans-serif;
+  letter-spacing: 0.4px;
+  color: #d5e7b9;
+}
+.combat-options {
+  display: grid;
+  gap: 10px;
+}
+.combat-option {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 18px;
+  gap: 12px;
+  align-items: center;
+  text-align: left;
+  padding: 15px;
+  background: #344c3e;
+  border: 1px solid #809477;
+  border-radius: 14px;
+  color: #f0f4e8;
+  min-height: 94px;
+}
+.combat-option.transformation {
+  border: 2px solid #ffe0a2;
+  background: #514d34;
+}
+.combat-option-icon {
+  font-size: 29px;
+  color: #d8edb7;
+}
+.combat-option h2 {
+  font:
+    700 18px/1.2 Arial,
+    sans-serif;
+  margin: 3px 0 7px;
+}
+.combat-option ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  line-height: 1.5;
+  font-size: 13px;
+  color: #edf2e5;
+}
+.combat-pick {
+  font-size: 22px;
+  color: #d8edb7;
+}
+.combat-option:active {
+  background: #48614b;
+  transform: translateY(1px);
+}
+.combat-option:focus-visible,
+.combat-choices button:focus-visible {
+  outline: 3px solid #e0efbc;
+  outline-offset: 3px;
+}
+.combat-choices footer {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0;
+  font-size: 12px;
+  color: #d0ddc6;
+}
+.combat-choices footer button {
+  min-height: 44px;
+  padding: 10px 15px;
+  border: 1px solid #8ca080;
+  background: #304637;
+  color: #eff4df;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.combat-choices button:disabled {
+  opacity: 0.65;
+}
+.combat-choices details {
+  border-top: 1px solid #7d927c;
+  padding-top: 10px;
+  font-size: 13px;
+  color: #d7e4cd;
+}
+.combat-choices summary {
+  min-height: 44px;
+  display: list-item;
+  align-content: center;
+  cursor: pointer;
+}
+.combat-choices details p {
+  margin: 8px 0;
+}
+.combat-choices [data-screen-title]:focus {
+  outline: none;
+}
+#loadout,
+#kills {
+  display: none;
+}
+.hud-top {
+  gap: 10px;
+  align-items: flex-start;
+}
+.vitals {
+  width: 145px;
+  padding: 10px;
+  border-radius: 10px;
+}
+.vitals-label {
+  font-size: 11px;
+  letter-spacing: 0;
+}
+.hud-meta {
+  font-size: 10px;
+}
+.clock {
+  position: static;
+  transform: none;
+  margin-left: auto;
+  background: #20372be8;
+  border: 1px solid #839a6e66;
+  border-radius: 10px;
+  padding: 8px 10px;
+  min-width: 90px;
+}
+.clock strong {
+  font-size: 22px;
+  letter-spacing: 0;
+}
+.clock span {
+  font:
+    10px/1.3 Arial,
+    sans-serif;
+  letter-spacing: 0;
+  white-space: normal;
+  max-width: 120px;
+  margin-top: 3px;
+}
+.icon-button {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  margin-left: 0;
+  border-radius: 10px;
+}
+#combat-objective {
+  position: absolute;
+  top: calc(max(16px, env(safe-area-inset-top)) + 89px);
+  left: max(15px, env(safe-area-inset-left));
+  max-width: min(330px, calc(100% - 30px));
+  padding: 10px 12px;
+  background: #20352de8;
+  border: 1px solid #90aa83;
+  border-radius: 10px;
+}
+#combat-objective strong {
+  display: block;
+  font:
+    700 13px/1.3 Arial,
+    sans-serif;
+  color: #f1f4e7;
+}
+#combat-objective span {
+  display: block;
+  font:
+    12px/1.4 Arial,
+    sans-serif;
+  color: #d6e5cc;
+  margin-top: 4px;
+}
+#combat-objective > div {
+  height: 3px;
+  background: #526450;
+  margin-top: 8px;
+}
+#combat-objective i {
+  display: block;
+  height: 100%;
+  background: #d2edac;
+}
+#combat-objective[data-kind='boss'] i {
+  background: #ffb09b;
+}
+#combat-objective[data-kind='extract'] i {
+  background: #a2e8db;
+}
+#hit-notice {
+  position: absolute;
+  left: 50%;
+  top: 61%;
+  transform: translateX(-50%);
+  max-width: 90%;
+  padding: 6px 10px;
+  background: #432d27eb;
+  color: #ffe2d1;
+  border: 1px solid #e6a286;
+  border-radius: 8px;
+  font:
+    700 12px/1.3 Arial,
+    sans-serif;
+  text-align: center;
+}
+#buff-status {
+  top: auto;
+  bottom: max(120px, calc(env(safe-area-inset-bottom) + 110px));
+  font-size: 12px;
+  left: max(16px, env(safe-area-inset-left));
+}
+#resume-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  background: #10251e33;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom);
+}
+.resume-orientation {
+  margin-top: 150px;
+  max-width: 340px;
+  text-align: center;
+  padding: 18px;
+  border: 1px solid #a6b58b;
+  border-radius: 16px;
+  background: #22392ef2;
+  color: #edf3dd;
+  font:
+    14px/1.4 Arial,
+    sans-serif;
+}
+.resume-orientation p {
+  margin: 0;
+}
+#resume-count {
+  display: block;
+  font-size: 46px;
+  line-height: 1.2;
+  margin: 8px;
+}
+.resume-orientation button {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #9ab587;
+  border-radius: 10px;
+  background: #d9edb7;
+  color: #20332a;
+  font-weight: 700;
+  margin-top: 8px;
+  padding: 10px;
+}
+#resume-cancel {
+  background: #304b3d;
+  color: #edf3dd;
+}
+.ux-defeat-cause {
+  border-color: #c98d73;
+}
+@media (max-width: 360px) {
+  .combat-choices h1 {
+    font-size: 22px;
+  }
+  .combat-option {
+    padding: 12px;
+    gap: 8px;
+    grid-template-columns: 26px minmax(0, 1fr) 12px;
+  }
+  .combat-option-icon {
+    font-size: 24px;
+  }
+  .combat-option h2 {
+    font-size: 16px;
+  }
+  .vitals {
+    width: 120px;
+  }
+  .clock {
+    min-width: 78px;
+    padding: 8px 6px;
+  }
+  .clock span {
+    max-width: 85px;
+  }
+}
+@media (min-width: 650px) and (max-height: 500px) {
+  .combat-options {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .combat-option {
+    display: block;
+    min-height: 160px;
+    padding: 12px;
+  }
+  .combat-option-icon {
+    display: none;
+  }
+  .combat-pick {
+    display: none;
+  }
+  .resume-orientation {
+    margin-top: 0;
+    margin-left: 40%;
+    padding: 12px;
+  }
+  #combat-objective {
+    max-width: 260px;
+  }
+}
+.combat-overlay {
+  padding: max(16px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+  background: #20342cf7;
+}
+.combat-option p {
+  font:
+    13px/1.5 Arial,
+    sans-serif;
+  margin: 6px 0 0;
+  color: #edf2e5;
+}
+.combat-overlay .pause-page h1 {
+  font:
+    700 30px/1.15 Arial,
+    sans-serif;
+  letter-spacing: -0.5px;
+  margin: 8px 0;
+}
+.combat-overlay .pause-page .eyebrow {
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+.combat-overlay .pause-page .lede {
+  font-size: 14px;
+}
+.combat-overlay .pause-page .section-label {
+  font-size: 12px;
+  letter-spacing: 0.4px;
+}
+.combat-overlay .pause-page .run-summary,
+.combat-overlay .pause-page .pause-contracts {
+  font-size: 12px;
+}
+.combat-overlay .pause-weapons span {
+  font-size: 14px;
+}
+#resume-cover {
+  align-items: flex-end;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+.resume-orientation {
+  margin-top: 0;
+}
+@media (min-width: 650px) and (max-height: 500px) {
+  .resume-orientation {
+    margin-left: 45%;
+    max-width: 300px;
+  }
+}

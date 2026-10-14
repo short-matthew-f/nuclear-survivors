@@ -1,3 +1,4 @@
+import { hitExplanation } from './damage.js';
 import {
   OPERATORS,
   WEAPONS,
@@ -97,7 +98,7 @@ export function renderHome(c) {
   const s = deploymentSummary(c.profile, c.selection),
     hero = s.hero;
   const checkpoint = c.savedRun;
-  const content = `<div class="ux-field-banner"><div><span class="ux-kicker">${checkpoint ? 'OPERATION ON HOLD' : 'READY WHEN YOU ARE'}</span><h2>${checkpoint ? 'The zone can wait.' : 'One more sunrise.'}</h2><p>${checkpoint ? `${checkpoint.operator.name} · ${time(checkpoint.time)} survived` : 'Choose your build. Bring it home.'}</p></div></div>${button(`${portrait(hero, c.profile)}<div><span class="ux-small">${s.daily ? 'FIXED DAILY HERO' : checkpoint ? 'NEXT OPERATION HERO' : 'YOUR HERO'}</span><strong>${hero.name}</strong><span>${s.weapon.name} · ${s.abilityName}</span></div>${s.daily ? status('Daily') : glyph('arrow')}`, 'hero-open', hero.id, 'ux-hero-summary')}<div class="ux-setup-card"><div class="ux-row-heading"><span class="ux-small">${checkpoint ? 'NEXT MISSION' : 'MISSION'}</span>${button('Change', 'deployment', '', 'ux-link')}</div><h2>${s.missionName}</h2><p>${s.objective}</p><div class="ux-chips"><span>${s.modeName}</span><span>${s.zone.name}</span><span>${s.duration}</span><span>${s.difficulty.name}</span></div>${s.daily ? '<p class="ux-note">A shared seed with standard gear and no Bunker bonuses.</p>' : button(`<span>Field kit</span><strong>${PERKS.find((p) => p.id === c.profile.perk).name}</strong>${glyph('arrow')}`, 'kits', '', 'ux-setup-row')}</div>${section('Next goals', button('View all', 'goals', '', 'ux-link'))}${goalRows(nextGoals(c.profile, hero.id, 2))}${!nextGoals(c.profile, hero.id).length ? '<p class="ux-note">Field unlocks complete. Try another hero or a tougher operation.</p>' : ''}<p class="ux-build">FIELD BUILD 1.5 · TOUCH TO MOVE · AUTO COMBAT</p>`;
+  const content = `<div class="ux-field-banner"><div><span class="ux-kicker">${checkpoint ? 'OPERATION ON HOLD' : 'READY WHEN YOU ARE'}</span><h2>${checkpoint ? 'The zone can wait.' : 'One more sunrise.'}</h2><p>${checkpoint ? `${checkpoint.operator.name} · ${time(checkpoint.time)} survived` : 'Choose your build. Bring it home.'}</p></div></div>${button(`${portrait(hero, c.profile)}<div><span class="ux-small">${s.daily ? 'FIXED DAILY HERO' : checkpoint ? 'NEXT OPERATION HERO' : 'YOUR HERO'}</span><strong>${hero.name}</strong><span>${s.weapon.name} · ${s.abilityName}</span></div>${s.daily ? status('Daily') : glyph('arrow')}`, 'hero-open', hero.id, 'ux-hero-summary')}<div class="ux-setup-card"><div class="ux-row-heading"><span class="ux-small">${checkpoint ? 'NEXT MISSION' : 'MISSION'}</span>${button('Change', 'deployment', '', 'ux-link')}</div><h2>${s.missionName}</h2><p>${s.objective}</p><div class="ux-chips"><span>${s.modeName}</span><span>${s.zone.name}</span><span>${s.duration}</span><span>${s.difficulty.name}</span></div>${s.daily ? '<p class="ux-note">A shared seed with standard gear and no Bunker bonuses.</p>' : button(`<span>Field kit</span><strong>${PERKS.find((p) => p.id === c.profile.perk).name}</strong>${glyph('arrow')}`, 'kits', '', 'ux-setup-row')}</div>${section('Next goals', button('View all', 'goals', '', 'ux-link'))}${goalRows(nextGoals(c.profile, hero.id, 2))}${!nextGoals(c.profile, hero.id).length ? '<p class="ux-note">Field unlocks complete. Try another hero or a tougher operation.</p>' : ''}<p class="ux-build">FIELD BUILD 1.6 · TOUCH TO MOVE · AUTO COMBAT</p>`;
   const footer = checkpoint
     ? `${button(`Resume · ${time(checkpoint.time)} ${glyph('arrow')}`, 'restore', '', 'ux-primary')}${button('Start a new operation', 'start', '', 'ux-footer-link')}`
     : button(`Deploy ${glyph('arrow')}`, 'start', '', 'ux-primary');
@@ -479,7 +480,8 @@ export function renderSettings(c) {
 export function renderResults(c, g, result, chapter) {
   const bonus = (result?.unlocked || []).reduce((sum, a) => sum + a.reward, 0),
     total = (result?.earned || 0) + bonus + (chapter?.reward || 0),
-    won = g.state === 'won';
+    won = g.state === 'won',
+    fatal = !won ? hitExplanation(g.deathReport) : null;
   const rewards = [
     ...(result?.fieldUnlocks || []).map((r) => r.name),
     ...(result?.mastery?.rewards || []),
@@ -498,7 +500,7 @@ export function renderResults(c, g, result, chapter) {
       )
       .join(
         '',
-      )}</div><div class="ux-result-scrap"><span>Scrap recovered</span><strong>+${total}</strong><small>Wallet: ${c.profile.scrap} scrap</small></div>${rewards.length ? `<div class="ux-callout"><strong>New possibilities</strong><ul>${rewards.map((r) => `<li>✓ ${esc(r)}</li>`).join('')}</ul>${button('Review hero', 'hero-goal', g.operator.id, 'ux-link')}</div>` : ''}${chapter ? `<div class="ux-callout"><span class="ux-small">CHAPTER COMPLETE</span><h2>${chapter.title}</h2><p>${chapter.debrief}</p></div>` : ''}<details class="ux-result-details" data-panel="result-details"><summary>Operation details & rewards</summary><p>${g.bossKills} titans · ${g.eventsCompleted} field events · ${g.eliteKills} elites</p><p>Field salvage ${result?.earned || 0} · Commendations ${bonus}${chapter ? ` · Chapter ${chapter.reward}` : ''}</p>${(result?.unlocked || []).map((a) => `<p>✓ ${a.name} · ${a.reward} scrap</p>`).join('')}</details>`,
+      )}</div>${fatal ? `<div class="ux-callout ux-defeat-cause"><span class="ux-small">FINAL HIT · ${fatal.amount} HP</span><h2>${esc(fatal.label)}</h2><p>${esc(fatal.tip)}</p></div>` : ''}<div class="ux-result-scrap"><span>Scrap recovered</span><strong>+${total}</strong><small>Wallet: ${c.profile.scrap} scrap</small></div>${rewards.length ? `<div class="ux-callout"><strong>New possibilities</strong><ul>${rewards.map((r) => `<li>✓ ${esc(r)}</li>`).join('')}</ul>${button('Review hero', 'hero-goal', g.operator.id, 'ux-link')}</div>` : ''}${chapter ? `<div class="ux-callout"><span class="ux-small">CHAPTER COMPLETE</span><h2>${chapter.title}</h2><p>${chapter.debrief}</p></div>` : ''}<details class="ux-result-details" data-panel="result-details"><summary>Operation details & rewards</summary><p>${g.bossKills} titans · ${g.eventsCompleted} field events · ${g.eliteKills} elites</p><p>Field salvage ${result?.earned || 0} · Commendations ${bonus}${chapter ? ` · Chapter ${chapter.reward}` : ''}</p>${(result?.unlocked || []).map((a) => `<p>✓ ${a.name} · ${a.reward} scrap</p>`).join('')}</details>`,
     {
       footer:
         button(

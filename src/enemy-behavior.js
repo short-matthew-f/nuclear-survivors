@@ -51,7 +51,13 @@ export function updateEnemyBehavior(g, e, dt) {
     if (e.detonate > 0) {
       e.detonate = Math.max(0, e.detonate - dt);
       if (e.detonate === 0) {
-        if (distance(e, p) < 95) hurtPlayer(g, e.damage);
+        if (distance(e, p) < 95)
+          hurtPlayer(g, e.damage, {
+            kind: 'explosion',
+            enemy: e.type,
+            x: e.x,
+            y: e.y,
+          });
         g.effects.push({
           kind: 'ring',
           x: e.x,

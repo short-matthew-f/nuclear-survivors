@@ -40,3 +40,17 @@ Physical iPhone Safari/PWA testing is still needed for notch/home-indicator inse
 ## Maintenance
 
 Menu markup is pure in `src/presentation.js`; browser-independent menu data lives in `src/menu-model.js`. Routing and persistence stay in `src/main.js`/`src/profile.js`, and view restoration in `src/menu.js`. Profile version two and checkpoint version one remain supported. No new runtime assets or external dependencies were added.
+
+## Combat follow-through (1.6)
+
+The handbook's action and feedback chapters informed five further changes: comparable level-up/relic choices; a single prioritized objective; danger outlines above player effects; source-aware hit/defeat feedback; and a cancellable three-second resume orientation. The orientation card sits below the survivor in portrait and to the side in short landscape layouts. Damage data stays optional in version-one checkpoints.
+
+Scripted checks covered 390×844 and 320×568 portrait choices, compact relics, and 844×390 landscape comparisons. A synthetic dense scene uses 70 ordinary enemies, a titan, 25 overlapping weapon effects, hazard/beam warnings, and 20 projectiles. This supports visual review; it does not establish a physical iPhone frame-rate budget. The live app was checked for pause, countdown cancellation, immediate resume, and pause again; no browser errors were observed. Full automated coverage includes the twenty-minute simulation. Physical device touch, frame pacing, and perception testing remain necessary.
+
+![Compact upgrade comparison](ux-upgrades.png)
+
+![Danger outlines in a dense synthetic scene](ux-combat.png)
+
+![Fatal source explanation](ux-defeat.png)
+
+![Resume orientation leaves the survivor visible](ux-resume.png)
