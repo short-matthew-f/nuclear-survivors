@@ -4404,7 +4404,7 @@ label {
 }
 .nova-control {
   right: 18px;
-  bottom: 112px;
+  bottom: 92px;
 }
 #dash {
   width: 80px;
@@ -4513,7 +4513,7 @@ label {
   }
   .nova-control {
     right: 104px;
-    bottom: 12px;
+    bottom: 4px;
   }
   .left-handed .nova-control {
     left: 104px;
@@ -4562,7 +4562,7 @@ label {
   }
   .nova-control {
     right: 104px;
-    bottom: 12px;
+    bottom: 4px;
   }
   .left-handed .nova-control {
     left: 104px;

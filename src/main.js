@@ -991,7 +991,6 @@ function renderUI() {
   $('nova').querySelector('span').textContent = abilityFor(game).icon;
   $('nova-readout-name').textContent =
     branchForGame(game)?.name || abilityFor(game).name;
-  $('nova').querySelector('small').textContent = 'ABILITY';
   $('extract-hud').hidden =
     !game.extraction || distance(p, game.extraction) > game.extraction.radius;
   if (game.extraction) {
