@@ -24,6 +24,7 @@ export const SAVE_KEY = 'nuclear-survivors-v2';
 export function freshProfile() {
   return {
     version: 2,
+    onboarding: { movement: false },
     scrap: 0,
     research: {},
     operators: ['nomad'],
@@ -182,6 +183,10 @@ export function parseProfile(raw) {
     ])
       if (typeof data.settings?.[k] === 'boolean')
         p.settings[k] = data.settings[k];
+    p.onboarding.movement =
+      typeof data.onboarding?.movement === 'boolean'
+        ? data.onboarding.movement
+        : p.runs > 0;
     p.settings.quality = data.settings?.quality === 'low' ? 'low' : 'high';
     restoreUnlockProgress(p, data.unlockProgress);
     parseMastery(p, data);

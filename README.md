@@ -4,7 +4,7 @@ A fullscreen, touch-first survival roguelite in a radioactive exclusion zone. Dr
 
 **[Play the game](https://short-matthew-f.github.io/nuclear-survivors/)**
 
-## Field edition 1.7
+## Field edition 1.8
 
 - Edge-to-edge Canvas gameplay with a compact HUD. No page header, footer, sidebar, or keyboard movement.
 - A floating analog thumbstick, multi-touch dash and selectable active abilities, automatic aiming, optional sound, and supported-device haptics.
@@ -179,8 +179,14 @@ Resuming starts a three-second orientation countdown while simulation stays paus
 
 ## Two-thumb HUD (1.7)
 
-Dash is the larger outer button; the active ability sits above and inward in tall portrait layouts. Short screens use a compact row. Both have separate cooldown readouts above the buttons. Left-handed controls mirror the action cluster and movement acquisition region together. A movement finger can cross the screen after it is captured, but a missed touch on the action side cannot start movement. Mouse dragging remains available anywhere.
+Dash is the larger outer button; the active ability sits above and inward in tall portrait layouts. Short screens use a compact row. Both use an in-button cooldown ring and countdown during recharge, with no floating labels. Left-handed controls mirror the action cluster and movement acquisition region together. A movement finger can cross the screen after it is captured, but a missed touch on the action side cannot start movement. Mouse dragging remains available anywhere.
 
 The minimap sits above the thumbs: upper right in portrait, upper centre in short landscape. Its arrow marks the survivor, dots mark infected, diamonds mark titans, squares mark supplies, and flags mark objectives. Distant objectives stay on the rim. Health, timer, pause, objective, and radar form the upper HUD; buffs sit below health, extraction progress stays in the upper objective panel, and Overtime sits below the upper objective area. The radar toggle is preserved.
 
-`src/controls.js` owns movement-side acquisition and cooldown labels; `src/radar.js` owns radar projection and rendering on its dedicated HUD canvas. Tests in `tests/controls.test.js` verify mirrored touch acquisition, mouse compatibility, cooldown rounding, and off-map objective projection. The development combat fixture offers mirrored controls and illustrative thumb masks. Physical grip and simultaneous touch validation still require an iPhone.
+`src/controls.js` owns movement-side acquisition and learning gestures; `src/radar.js` owns radar projection and rendering on its dedicated HUD canvas. Tests in `tests/controls.test.js` verify mirrored touch acquisition, mouse compatibility, cooldown rounding, and off-map objective projection. The development combat fixture offers mirrored controls and illustrative thumb masks. Physical grip and simultaneous touch validation still require an iPhone.
+
+## Quiet combat HUD (1.8)
+
+Health stays a small gauge; exact HP appears for three seconds after damage and remains visible below 30%. Hero identity, level, kills, and arsenal details live in pause. One clock shows extraction time, open/locked status, or elapsed endless survival. One compact objective line expands for nearby interactions, extraction progress, and titan fights. The circular radar has no label or grid, preserving distant objective flags. Translucent action buttons retain their touch areas and mirrored layout; recharge rings and numbers replace floating names and Ready boxes.
+
+The movement hint sits by the movement thumb and is remembered after deliberate movement. Optional `onboarding.movement` preserves profile version two and backup compatibility; older profiles with completed operations skip the hint. `src/hud.js` owns the pure HUD model and shared DOM painter used by production and the save-free combat fixture. `tests/hud.test.js` covers contextual detail, clocks, and migration; gesture tests live in `tests/controls.test.js`. See [visual review](docs/mobile-ux-review.md) for screenshots and device-check limitations.

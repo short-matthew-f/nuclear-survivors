@@ -26,19 +26,23 @@
       ></canvas>
       <div id="hud" hidden>
         <div class="hud-top">
-          <div class="vitals">
-            <div class="vitals-label">
-              <span id="operator-label">NOMAD</span
-              ><span id="health-label">100 / 100</span>
-            </div>
+          <div
+            class="vitals"
+            role="progressbar"
+            aria-label="Health"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="100"
+          >
+            <span class="health-symbol" aria-hidden="true">♡</span>
             <div class="health-track"><div id="health"></div></div>
-            <div class="hud-meta">
-              <span id="level">LV 1</span><span id="kills">0 KILLS</span>
-            </div>
+            <span id="health-label" hidden>100 / 100</span
+            ><span id="operator-label" hidden></span
+            ><span id="level" hidden></span><span id="kills" hidden></span>
           </div>
           <div class="clock">
-            <strong id="timer">00:00</strong
-            ><span id="phase">EXTRACTION IN 08:00</span>
+            <strong id="timer">Extract 8:00</strong
+            ><span id="phase" hidden></span>
           </div>
           <button class="icon-button" id="pause" aria-label="Pause game">
             Ⅱ
@@ -59,7 +63,7 @@
         </div>
         <div id="buff-status"></div>
         <div id="field-radar" role="img" aria-label="Field radar">
-          <canvas id="radar" aria-hidden="true"></canvas><span>RADAR</span>
+          <canvas id="radar" aria-hidden="true"></canvas>
         </div>
         <div id="combat-objective" hidden>
           <strong id="combat-objective-title"></strong
@@ -71,26 +75,34 @@
         <button id="overtime" hidden>
           OVERTIME ↗ <small>+4 MIN · +75% SALVAGE</small>
         </button>
-        <div id="touch-hint">
-          <strong id="move-hint">DRAG LEFT SIDE TO MOVE</strong
-          ><span>WEAPONS FIRE AUTOMATICALLY</span>
-        </div>
+        <div id="touch-hint"><strong id="move-hint">Drag to move</strong></div>
         <div class="abilities" aria-label="Combat controls">
           <div class="ability-control dash-control">
-            <div class="ability-readout">
-              <span>Dash</span><strong id="dash-readout">Ready</strong>
-            </div>
             <button id="dash" class="ability" aria-label="Dash">
-              <span>⤳</span><b></b>
+              <svg class="cooldown-ring" viewBox="0 0 80 80" aria-hidden="true">
+                <circle class="cooldown-track" cx="40" cy="40" r="36" />
+                <circle
+                  class="cooldown-progress"
+                  cx="40"
+                  cy="40"
+                  r="36"
+                  pathLength="100"
+                /></svg
+              ><span>⤳</span><b hidden></b>
             </button>
           </div>
           <div class="ability-control nova-control">
-            <div class="ability-readout">
-              <span id="nova-readout-name">Shockwave</span
-              ><strong id="nova-readout">Ready</strong>
-            </div>
             <button id="nova" class="ability nova" aria-label="Shockwave">
-              <span>✺</span><b></b>
+              <svg class="cooldown-ring" viewBox="0 0 80 80" aria-hidden="true">
+                <circle class="cooldown-track" cx="40" cy="40" r="36" />
+                <circle
+                  class="cooldown-progress"
+                  cx="40"
+                  cy="40"
+                  r="36"
+                  pathLength="100"
+                /></svg
+              ><span>✺</span><b hidden></b>
             </button>
           </div>
         </div>
@@ -169,7 +181,12 @@
         gap: 4px;
       "
     >
-      <button data-scene="upgrade">Upgrade</button
+      <button data-scene="quiet">Quiet field</button
+      ><button data-scene="cooldown">Cooldowns</button
+      ><button data-scene="hit">Hit</button
+      ><button data-scene="interact">Rescue</button
+      ><button data-scene="onboarding">First move</button
+      ><button data-scene="upgrade">Upgrade</button
       ><button data-scene="relic">Relic</button
       ><button data-scene="busy">Busy field</button
       ><button data-scene="extract">Extraction</button
@@ -180,6 +197,7 @@
     </nav>
     <script type="module">
       import '/src/style.css';
+      import { paintCombatHud } from '/src/hud.js';
       import {
         createGame,
         seededRandom,
@@ -267,13 +285,46 @@
           life: 2,
         }));
         beginEvent(g, 'rescue');
+        if (
+          ['quiet', 'cooldown', 'hit', 'interact', 'onboarding'].includes(scene)
+        ) {
+          g = createGame(seededRandom('quiet'), {
+            operator: 'spark',
+            chapter: 'signal',
+          });
+          g.state = 'playing';
+          g.time = 5;
+        }
+        if (scene === 'cooldown') {
+          g.player.dashTimer = 3;
+          g.player.novaTimer = 12;
+        }
+        if (scene === 'hit')
+          hurtPlayer(g, 20, {
+            kind: 'projectile',
+            enemy: 'spitter',
+            x: 100,
+            y: 0,
+          });
+        if (scene === 'interact') {
+          beginEvent(g, 'rescue');
+          g.player.x = g.fieldEvent.x;
+          g.player.y = g.fieldEvent.y;
+          g.fieldEvent.progress = 3;
+        }
         const overlay = document.querySelector('#overlay');
-        overlay.hidden = ['busy', 'extract'].includes(scene);
+        overlay.hidden = [
+          'busy',
+          'extract',
+          'quiet',
+          'cooldown',
+          'hit',
+          'interact',
+          'onboarding',
+        ].includes(scene);
         overlay.className =
           scene === 'defeat' ? 'overlay ux-overlay' : 'overlay combat-overlay';
-        document.querySelector('#hud').hidden = !['busy', 'extract'].includes(
-          scene,
-        );
+        document.querySelector('#hud').hidden = !overlay.hidden;
         document.querySelector('#touch-hint').hidden = true;
         document.querySelector('#phase').textContent = 'Rescue 04:00';
         document.querySelector('#timer').textContent = '04:00';
@@ -283,16 +334,9 @@
           g.extractProgress = 4;
           document.querySelector('#extract-hud').hidden = false;
         }
-        const objective = primaryObjective(g);
-        document.querySelector('#combat-objective').hidden = false;
-        document.querySelector('#combat-objective-title').textContent =
-          objective.title;
-        document.querySelector('#combat-objective-detail').textContent =
-          objective.detail;
-        document.querySelector('#combat-objective-progress').style.width =
-          `${objective.progress * 100}%`;
-        document.querySelector('#combat-objective').dataset.kind =
-          objective.kind;
+        paintCombatHud(document, g, {
+          movementLearned: scene !== 'onboarding',
+        });
         if (scene === 'upgrade') {
           g.state = 'upgrade';
           overlay.innerHTML = renderUpgradeChoices(g);
@@ -324,7 +368,18 @@
       };
       load(new URLSearchParams(location.search).get('scene') || 'upgrade');
       function frame() {
-        if (['busy', 'extract'].includes(scene)) radar(g);
+        if (
+          [
+            'busy',
+            'extract',
+            'quiet',
+            'cooldown',
+            'hit',
+            'interact',
+            'onboarding',
+          ].includes(scene)
+        )
+          radar(g);
         renderer.render(
           g,
           { quality: 'high', numbers: true, shake: false },

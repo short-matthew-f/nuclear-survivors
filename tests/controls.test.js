@@ -39,3 +39,20 @@ test('distant radar objectives remain on the boundary in the correct direction',
   const centered = radarPoint(player, player);
   assert.deepEqual(centered, { x: 0, y: 0, edge: false });
 });
+
+test('onboarding requires a deliberate movement gesture rather than passive or dash travel', async () => {
+  const { completedMovementGesture } = await import('../src/controls.js');
+  assert.equal(completedMovementGesture(null, 100), false);
+  assert.equal(
+    completedMovementGesture({ ox: 0, oy: 0, x: 3, y: 3 }, 100),
+    false,
+  );
+  assert.equal(
+    completedMovementGesture({ ox: 0, oy: 0, x: 30, y: 0 }, 12),
+    false,
+  );
+  assert.equal(
+    completedMovementGesture({ ox: 0, oy: 0, x: 30, y: 0 }, 24),
+    true,
+  );
+});

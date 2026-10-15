@@ -1,12 +1,15 @@
-import { canStartMovement, movementSide, cooldownReadout } from './controls.js';
+import { paintCombatHud } from './hud.js';
+import {
+  canStartMovement,
+  movementSide,
+  completedMovementGesture,
+} from './controls.js';
 import { createRadarRenderer } from './radar.js';
 import {
   renderUpgradeChoices,
   renderRelicChoices,
-  primaryObjective,
   createResumeGate,
 } from './combat-ux.js';
-import { hitExplanation } from './damage.js';
 import './style.css';
 import {
   createGame,
@@ -45,10 +48,10 @@ import {
 import { FIELD_UNLOCKS } from './unlocks.js';
 import { artUrl } from './art.js';
 import { createRenderer } from './render.js';
-import { commitOvertime, missionReady } from './expedition.js';
+import { commitOvertime } from './expedition.js';
 import { abilityFor } from './abilities.js';
 import { createAudio } from './audio.js';
-import { equipHeroStyle, branchForGame, abilityCooldown } from './mastery.js';
+import { equipHeroStyle, branchForGame } from './mastery.js';
 import { RELICS, applyRelic } from './relics.js';
 import { createMenuRenderer } from './menu.js';
 import { MENU_ROOTS, validateDeployment } from './menu-model.js';
@@ -773,7 +776,7 @@ function settingsScreen() {
   return renderSettings(menuContext());
 }
 function guideScreen() {
-  return `<div class="menu-page">${navigation()}${heading('READ THIS. STAY ALIVE.', 'FIELD MANUAL.')}<div class="guide-grid"><article><span>01</span><h2>Keep your thumb moving.</h2><p>Touch and drag on the movement side, opposite the action buttons. A floating stick follows your thumb. Drag a little to walk, further to run. Weapons aim and fire automatically. A mouse drag works too.</p></article><article><span>02</span><h2>Use both hands.</h2><p>Keep moving with one thumb. Tap the larger, lower Dash button with the other to slip through danger. The smaller button above it uses your active ability. Your equipped ability can: blast, heal, overclock, freeze, or deploy a sentry. Both abilities recharge automatically; their remaining seconds appear above the buttons. The radar shows you as an arrow, infected as dots, titans as diamonds, supplies as squares, and objectives as flags. Distant objective flags stay on its rim. Change your active ability on your hero’s Loadout page.</p></article><article><span>03</span><h2>Become the hazard.</h2><p>Green cores grant experience. Each level offers a weapon specialization, a mutation, and room for a new weapon. Carry up to four weapons. Your last chosen weapon stays in focus. The build path shows its evolution key. Two rerolls per run. Supply caches restore health, award salvage, and draw in nearby cores.</p></article><article><span>04</span><h2>Get home.</h2><p>Titans arrive at 1:30, 3:30, and 6:30. Dodge their projectile rings and radiation warnings. At 8:00, follow the cyan marker. Stay inside the beacon for eight seconds to extract. Endless mode has no extraction. Once the beacon opens, you can choose Overtime: four more minutes for 75% bonus salvage, a full heal, and more titans.</p></article></div><div class="section-label">WEAPON EVOLUTIONS <span>LEVEL 5 + REQUIRED MUTATION</span></div><div class="evolution-list">${Object.entries(
+  return `<div class="menu-page">${navigation()}${heading('READ THIS. STAY ALIVE.', 'FIELD MANUAL.')}<div class="guide-grid"><article><span>01</span><h2>Keep your thumb moving.</h2><p>Touch and drag on the movement side, opposite the action buttons. A floating stick follows your thumb. Drag a little to walk, further to run. Weapons aim and fire automatically. A mouse drag works too.</p></article><article><span>02</span><h2>Use both hands.</h2><p>Keep moving with one thumb. Tap the larger, lower Dash button with the other to slip through danger. The smaller button uses your active ability. Your equipped ability can: blast, heal, overclock, freeze, or deploy a sentry. Both abilities recharge automatically. A ring and countdown inside each icon appear while it recharges. The radar shows you as an arrow, infected as dots, titans as diamonds, supplies as squares, and objectives as flags. Distant objective flags stay on its rim. Change your active ability on your hero’s Loadout page.</p></article><article><span>03</span><h2>Become the hazard.</h2><p>Green cores grant experience. Each level offers a weapon specialization, a mutation, and room for a new weapon. Carry up to four weapons. Your last chosen weapon stays in focus. The build path shows its evolution key. Two rerolls per run. Supply caches restore health, award salvage, and draw in nearby cores.</p></article><article><span>04</span><h2>Get home.</h2><p>Titans arrive at 1:30, 3:30, and 6:30. Dodge their projectile rings and radiation warnings. At 8:00, follow the cyan marker. Stay inside the beacon for eight seconds to extract. Endless mode has no extraction. Once the beacon opens, you can choose Overtime: four more minutes for 75% bonus salvage, a full heal, and more titans.</p></article></div><div class="section-label">WEAPON EVOLUTIONS <span>LEVEL 5 + REQUIRED MUTATION</span></div><div class="evolution-list">${Object.entries(
     EVOLUTIONS,
   )
     .map(([id, e]) => [
@@ -790,7 +793,7 @@ function guideScreen() {
     )}</div><div class="install-help"><h2>Take the zone with you.</h2><p>On iPhone or iPad: open in Safari, tap Share, then Add to Home Screen. On Android: choose Install app from the browser menu. After one complete online load, the installed game can launch offline. Progress is stored on this device; clearing site data removes it.</p>${action(installPrompt ? 'INSTALL GAME ↗' : 'INSTALL / HOME SCREEN', 'install', 'secondary')}</div></div>`;
 }
 function pauseScreen() {
-  return `<div class="pause-page">${heading('SIGNAL ON HOLD', 'TAKE A BREATH.', 'The zone can wait.')}<div class="run-summary"><span>${formatTime(game.time)} SURVIVED</span><span>${game.kills} KILLS</span><span>LEVEL ${game.level}</span></div><div class="pause-actions">${action('BACK TO THE FIELD ↗', 'resume')}${action('SETTINGS', 'settings', 'secondary')}${action('END OPERATION', 'abandon', 'text-button')}</div><div class="run-summary"><span>${game.difficulty.name.toUpperCase()}</span><span>${game.eventsCompleted} EVENTS</span><span>${game.eliteKills} ELITES</span><span>◈ ${game.scrap} SALVAGE</span></div><div class="section-label">CURRENT ARSENAL</div><div class="pause-weapons">${Object.entries(
+  return `<div class="pause-page">${heading('SIGNAL ON HOLD', 'TAKE A BREATH.', 'The zone can wait.')}<div class="run-summary"><span>${game.operator.name} · ${Math.ceil(game.player.hp)}/${game.player.maxHp} HP</span><span>${formatTime(game.time)} SURVIVED</span><span>${game.kills} KILLS</span><span>LEVEL ${game.level}</span></div><div class="pause-actions">${action('BACK TO THE FIELD ↗', 'resume')}${action('SETTINGS', 'settings', 'secondary')}${action('END OPERATION', 'abandon', 'text-button')}</div><div class="run-summary"><span>${game.difficulty.name.toUpperCase()}</span><span>${game.eventsCompleted} EVENTS</span><span>${game.eliteKills} ELITES</span><span>◈ ${game.scrap} SALVAGE</span></div><div class="section-label">CURRENT ARSENAL</div><div class="pause-weapons">${Object.entries(
     game.weapons,
   )
     .map(
@@ -838,8 +841,6 @@ function renderUI() {
   sound.setActive(playing);
   $('hud').hidden = !playing && !resumeGate.active;
   $('field-radar').hidden = !profile.settings.radar;
-  $('move-hint').textContent =
-    `DRAG ${movementSide(profile.settings.leftHanded).toUpperCase()} SIDE TO MOVE`;
   canvas.setAttribute(
     'aria-label',
     `Survival arena. Drag the ${movementSide(profile.settings.leftHanded)} side to move. Weapons fire automatically.`,
@@ -927,77 +928,10 @@ function renderUI() {
   }
   if (!playing && !resumeGate.active) return;
   if (profile.settings.radar) renderRadar(game);
-  const p = game.player;
-  $('operator-label').textContent = game.operator.name.toUpperCase();
-  $('health-label').textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`;
-  $('health').style.width = `${(p.hp / p.maxHp) * 100}%`;
-  $('health').classList.toggle('critical', p.hp / p.maxHp < 0.3);
-  $('level').textContent = `LV ${game.level}`;
-  $('kills').textContent = `${game.kills} KILLS`;
-  $('timer').textContent = formatTime(game.time);
-  $('phase').textContent =
-    game.mode === 'endless'
-      ? 'NO EXTRACTION'
-      : game.chapter && game.time >= game.extractionAt && !missionReady(game)
-        ? 'STORY OBJECTIVE'
-        : game.extraction
-          ? 'REACH THE BEACON'
-          : `Rescue ${formatTime(Math.ceil(Math.max(0, game.extractionAt - game.time)))}`;
-  $('mission-hud').hidden = true;
-  $('field-objective').hidden = true;
-  $('boss-hud').hidden = true;
-  const objective = primaryObjective(game);
-  $('combat-objective').hidden = !objective;
-  if (objective) {
-    $('combat-objective').dataset.kind = objective.kind;
-    $('combat-objective-title').textContent = objective.title;
-    $('combat-objective-detail').textContent = objective.detail;
-    $('combat-objective-progress').style.width = `${objective.progress * 100}%`;
-  }
-  const recentHit = game.lastHit && game.time - game.lastHit.time < 1;
-  $('hit-notice').hidden = !recentHit;
-  if (recentHit)
-    $('hit-notice').textContent =
-      `−${Math.ceil(game.lastHit.amount)} HP · ${hitExplanation(game.lastHit)?.label || 'Hit taken'}`;
-  $('buff-status').textContent =
-    game.buffs.surge > 0
-      ? `ϟ OVERCLOCK ${Math.ceil(game.buffs.surge)}s`
-      : game.buffs.overdrive > 0
-        ? `ϟ OVERDRIVE ${Math.ceil(game.buffs.overdrive)}s`
-        : p.invulnerable > 1
-          ? `⬡ SHIELD ${Math.ceil(p.invulnerable)}s`
-          : '';
-  $('overtime').hidden = !game.extraction || game.overtime || !!game.daily;
-  $('xp').style.width = `${(game.xp / game.xpNeeded) * 100}%`;
-  const message = game.eventUntil > game.time ? game.eventText : '';
-  if ($('announcement').textContent !== message)
-    $('announcement').textContent = message;
-  $('announcement').classList.toggle('visible', !!message);
-  $('touch-hint').hidden = game.time > 8 || game.distance > 120;
-  for (const [id, timer, total] of [
-    ['dash', p.dashTimer, p.dashCooldown],
-    ['nova', p.novaTimer, abilityCooldown(game)],
-  ]) {
-    const el = $(id);
-    el.style.setProperty('--cooldown', `${(timer / total) * 100}%`);
-    el.classList.toggle('recharging', timer > 0);
-    el.querySelector('b').textContent = '';
-    $(`${id}-readout`).textContent = cooldownReadout(timer);
-    el.setAttribute(
-      'aria-label',
-      `${id === 'nova' ? branchForGame(game)?.name || abilityFor(game).name : 'Dash'}${timer > 0 ? `, ready in ${Math.ceil(timer)} seconds` : ', ready'}`,
-    );
-  }
-  $('nova').querySelector('span').textContent = abilityFor(game).icon;
-  $('nova-readout-name').textContent =
-    branchForGame(game)?.name || abilityFor(game).name;
-  $('extract-hud').hidden =
-    !game.extraction || distance(p, game.extraction) > game.extraction.radius;
-  if (game.extraction) {
-    $('extract-percent').textContent =
-      `${Math.floor((game.extractProgress / 8) * 100)}%`;
-    $('extract-fill').style.width = `${(game.extractProgress / 8) * 100}%`;
-  }
+  paintCombatHud(document, game, {
+    ...profile.settings,
+    movementLearned: profile.onboarding.movement,
+  });
 }
 let previousHp = game.player.hp,
   previousState = game.state,
@@ -1009,6 +943,13 @@ function frame(timestamp) {
   ambient += dt;
   if (resumeGate.active && resumeGate.advance(dt)) finishResume();
   update(game, resumeGate.active ? 0 : dt, input(), renderer.getView());
+  if (
+    !profile.onboarding.movement &&
+    completedMovementGesture(pointer, game.distance)
+  ) {
+    profile.onboarding.movement = true;
+    save();
+  }
   if (game.player.hp < previousHp - 1) {
     haptic(25);
     tone(65, 0.12);

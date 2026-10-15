@@ -21,20 +21,12 @@ export function createRadarRenderer(canvas) {
     ctx.clearRect(0, 0, size, size);
     ctx.save();
     ctx.translate(40, 40);
-    ctx.fillStyle = '#142b25';
+    ctx.fillStyle = '#142b25b8';
     ctx.beginPath();
     ctx.arc(0, 0, 37, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = '#88a68a';
+    ctx.strokeStyle = '#a2bd9866';
     ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.strokeStyle = '#59765c77';
-    ctx.beginPath();
-    ctx.arc(0, 0, 18, 0, Math.PI * 2);
-    ctx.moveTo(-33, 0);
-    ctx.lineTo(33, 0);
-    ctx.moveTo(0, -33);
-    ctx.lineTo(0, 33);
     ctx.stroke();
     const mark = (target, color, shape, r = 2, clamp = false) => {
       const point = radarPoint(target, g.player);

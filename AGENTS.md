@@ -63,3 +63,7 @@ Keep simulation and content definitions browser-independent (`src/game.js`, `src
 ## Two-thumb Controls (1.7)
 
 `src/controls.js` owns movement-side acquisition and cooldown labels. Touch movement starts opposite the action buttons, then remains captured across the arena; mouse input may start anywhere. Mirror movement and actions together. `src/radar.js` draws a dedicated HUD canvas; keep it outside lower thumb regions and retain off-map objective flags. Verify acquisition and radar projection in `tests/controls.test.js`. Illustrative thumb masks live only in the save-free combat fixture.
+
+## Quiet Combat HUD (1.8)
+
+`src/hud.js` owns contextual HUD state and its shared DOM painter. Keep production and the save-free combat fixture on that painter. Action buttons show only icons and recharge rings/numbers; accessible names retain ability and readiness details. Keep one clock and one prioritized objective, expanding instructions only when actionable. `profile.onboarding.movement` is optional version-two data: preserve it in backups, migrate experienced profiles, and learn only from a deliberate movement gesture. Verify HUD states and migration in `tests/hud.test.js`, and gesture acquisition in `tests/controls.test.js`. Preserve radar edge flags and mirrored touch areas.

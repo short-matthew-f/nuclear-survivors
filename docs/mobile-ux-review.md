@@ -64,3 +64,17 @@ Scripted visual checks covered 390×844, 320×568, 844×390, and 568×320, inclu
 ![Reorganized controls and minimap](ux-thumb-layout.png)
 
 ![Illustrative thumb-mask review, development fixture only](ux-thumb-check.png)
+
+## Quiet field presentation (1.8)
+
+The iPhone screenshot exposed too many permanent panels competing with the arena. The new baseline uses a small health gauge, one extraction clock, one objective line, and a circular minimap without a grid or label. Floating ability names and Ready boxes are removed. Muted translucent action buttons retain their hit areas; rings and numbers appear during recharge. Hero identity and run statistics are available in pause.
+
+Health numbers appear briefly after damage and persist at critical health. Objectives expand for nearby interaction instructions, titan health, and extraction progress. Distant signals stay compact. Redundant introductory announcements are suppressed. The movement hint sits near the movement thumb and is saved after deliberate movement; older completed-run profiles skip it. No progression or checkpoint is replaced.
+
+Scripted browser review covered 390×844 and 320×568 portrait, plus 844×390 and 568×320 landscape. The landscape check caught timer/minimap crowding, corrected by moving the timer to the right. Review covered quiet play, recharge, received damage, and nearby rescue. Live play verified upgrades, action activation, checkpoint restoration, and pause statistics without browser errors. Automated tests cover clocks, contextual information, gesture learning, and old-profile/backup migration. Physical iPhone grip, simultaneous touches, and VoiceOver remain device checks.
+
+![Quiet field HUD](ux-quiet-field.png)
+
+![Recharge rings and numbers](ux-quiet-cooldown.png)
+
+![Instructions appear near a rescue](ux-quiet-objective.png)

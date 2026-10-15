@@ -15,3 +15,11 @@ export const movementSide = (leftHanded) => (leftHanded ? 'right' : 'left');
 export function cooldownReadout(timer) {
   return timer > 0 ? `${Math.ceil(timer)}s` : 'Ready';
 }
+export function completedMovementGesture(pointer, distance) {
+  return (
+    !!pointer &&
+    Number.isFinite(distance) &&
+    distance >= 24 &&
+    Math.hypot(pointer.x - pointer.ox, pointer.y - pointer.oy) >= 12
+  );
+}
