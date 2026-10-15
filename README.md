@@ -179,7 +179,7 @@ Resuming starts a three-second orientation countdown while simulation stays paus
 
 ## Two-thumb HUD (1.7)
 
-Dash is the larger outer button; the active ability sits above and inward in tall portrait layouts. Short screens use a compact row. Both use an in-button cooldown ring and countdown during recharge, with no floating labels. Left-handed controls mirror the action cluster and movement acquisition region together. A movement finger can cross the screen after it is captured, but a missed touch on the action side cannot start movement. Mouse dragging remains available anywhere.
+Dash sits below-left of the smaller active ability in a compact bottom-right diagonal. The two hit areas have an eight-pixel horizontal gap; the arrangement stays consistent across portrait and landscape. Left-handed mode mirrors the diagonal into the bottom-left corner. Both use an in-button cooldown ring and countdown during recharge, with no floating labels. Left-handed controls mirror the action cluster and movement acquisition region together. A movement finger can cross the screen after it is captured, but a missed touch on the action side cannot start movement. Mouse dragging remains available anywhere.
 
 The minimap sits above the thumbs: upper right in portrait, upper centre in short landscape. Its arrow marks the survivor, dots mark infected, diamonds mark titans, squares mark supplies, and flags mark objectives. Distant objectives stay on the rim. Health, timer, pause, objective, and radar form the upper HUD; buffs sit below health, extraction progress stays in the upper objective panel, and Overtime sits below the upper objective area. The radar toggle is preserved.
 

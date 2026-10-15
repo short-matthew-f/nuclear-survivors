@@ -78,3 +78,11 @@ Scripted browser review covered 390×844 and 320×568 portrait, plus 844×390 an
 ![Recharge rings and numbers](ux-quiet-cooldown.png)
 
 ![Instructions appear near a rescue](ux-quiet-objective.png)
+
+## Compact action diagonal (1.8.1)
+
+Following the requested clockwise rearrangement, the active ability sits above-right of Dash in the bottom-right corner. The cluster shrinks from 210×210 to 156×124 CSS pixels, with an eight-pixel horizontal gap between the unchanged 80px Dash and 68px ability hit areas. The baseline bottom inset is 28px (32px in short landscape), respecting larger device safe areas. Left-handed mode mirrors the arrangement. Removed obsolete breakpoint offsets so short screens keep the same diagonal.
+
+Browser checks at 390×844, 320×568, and 568×320 confirmed both controls remain on screen without overlapping hit areas; mirrored positions were checked at 320×568. No gameplay or persistence behavior changed. Physical thumb comfort still needs play on an iPhone.
+
+![Compact bottom-right action diagonal](ux-compact-actions.png)
